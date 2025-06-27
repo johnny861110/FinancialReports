@@ -1,0 +1,26 @@
+[
+  {
+    "status": "success",
+    "stock_code": "2363",
+    "company_name": "矽統",
+    "period": "2024Q3",
+    "timestamp": "2025-06-27T19:27:35.781246",
+    "details": "下載完成"
+  },
+  {
+    "status": "success",
+    "stock_code": "2363",
+    "company_name": "矽統",
+    "period": "2024Q4",
+    "timestamp": "2025-06-27T19:27:40.070185",
+    "details": "下載完成"
+  },
+  {
+    "status": "success",
+    "stock_code": "2363",
+    "company_name": "矽統",
+    "period": "2025Q1",
+    "timestamp": "2025-06-27T19:27:42.705103",
+    "details": "下載完成"
+  }
+]

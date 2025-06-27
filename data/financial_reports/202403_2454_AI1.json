@@ -1,0 +1,36 @@
+{
+  "stock_code": "2454",
+  "company_name": "聯發科",
+  "report_year": 2024,
+  "report_season": "Q3",
+  "currency": "TWD",
+  "unit": "千元",
+  "financials": {
+    "cash_and_equivalents": null,
+    "accounts_receivable": null,
+    "inventory": null,
+    "total_assets": null,
+    "total_liabilities": null,
+    "equity": null
+  },
+  "income_statement": {
+    "net_revenue": null,
+    "gross_profit": null,
+    "operating_income": null,
+    "net_income": null,
+    "eps": null
+  },
+  "metadata": {
+    "source": "doc.twse.com.tw",
+    "file_name": "202403_2454_AI1.pdf",
+    "file_path": "data\\financial_reports\\202403_2454_AI1.pdf",
+    "file_size": 1488883,
+    "download_url": "https://doc.twse.com.tw/pdf/202403_2454_AI1_20250627_192459.pdf",
+    "crawled_at": "2025-06-27T19:24:58.874448",
+    "parser_version": "unified_crawler_v1.0",
+    "validation": {
+      "file_exists": true,
+      "size_reasonable": true
+    }
+  }
+}

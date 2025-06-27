@@ -14,9 +14,10 @@ REPORTS_DIR = os.path.abspath("./reports/")
 # Log file path
 LOG_FILE = os.path.abspath("../logs/scraper.log")
 
-# Selenium WebDriver options
-SELENIUM_OPTIONS = {
-    "headless": True,
-    "disable_gpu": True,
-    "no_sandbox": True
-}
+# 注意：此專案已切換為 requests-based 架構，不再使用 Selenium
+# 以下配置為歷史遺留，可以刪除
+# SELENIUM_OPTIONS = {
+#     "headless": True,
+#     "disable_gpu": True,
+#     "no_sandbox": True
+# }

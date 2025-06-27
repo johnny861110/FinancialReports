@@ -1,0 +1,219 @@
+{
+  "project_info": {
+    "title": "ETF重點成分股財報全面爬取",
+    "target_companies": {
+      "2330": "台積電",
+      "2454": "聯發科",
+      "2317": "鴻海"
+    },
+    "target_periods": [
+      [
+        2022,
+        1
+      ],
+      [
+        2022,
+        2
+      ],
+      [
+        2022,
+        3
+      ],
+      [
+        2022,
+        4
+      ],
+      [
+        2023,
+        1
+      ],
+      [
+        2023,
+        2
+      ],
+      [
+        2023,
+        3
+      ],
+      [
+        2023,
+        4
+      ],
+      [
+        2024,
+        1
+      ],
+      [
+        2024,
+        2
+      ],
+      [
+        2024,
+        3
+      ],
+      [
+        2024,
+        4
+      ],
+      [
+        2025,
+        1
+      ]
+    ],
+    "created_at": "2025-06-27T00:35:02.239300"
+  },
+  "statistics": {
+    "total_attempts": 30,
+    "successful_downloads": 8,
+    "failed_downloads": 22,
+    "no_data_count": 0,
+    "financial_holding_count": 0,
+    "server_error_count": 0,
+    "success_rate": "26.7%",
+    "parsed_reports_count": 8
+  },
+  "coverage_analysis": {
+    "by_company": {
+      "2330": {
+        "company_name": "台積電",
+        "reports_count": 2,
+        "coverage_rate": "15.4%",
+        "available_periods": [
+          "2022Q1",
+          "2022Q2"
+        ]
+      },
+      "2454": {
+        "company_name": "聯發科",
+        "reports_count": 6,
+        "coverage_rate": "46.2%",
+        "available_periods": [
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3"
+        ]
+      },
+      "2317": {
+        "company_name": "鴻海",
+        "reports_count": 0,
+        "coverage_rate": "0.0%",
+        "available_periods": []
+      }
+    },
+    "by_period": {
+      "2022Q1": {
+        "reports_count": 1,
+        "coverage_rate": "33.3%",
+        "available_companies": [
+          "2330"
+        ]
+      },
+      "2022Q2": {
+        "reports_count": 2,
+        "coverage_rate": "66.7%",
+        "available_companies": [
+          "2330",
+          "2454"
+        ]
+      },
+      "2022Q3": {
+        "reports_count": 1,
+        "coverage_rate": "33.3%",
+        "available_companies": [
+          "2454"
+        ]
+      },
+      "2022Q4": {
+        "reports_count": 1,
+        "coverage_rate": "33.3%",
+        "available_companies": [
+          "2454"
+        ]
+      },
+      "2023Q1": {
+        "reports_count": 1,
+        "coverage_rate": "33.3%",
+        "available_companies": [
+          "2454"
+        ]
+      },
+      "2023Q2": {
+        "reports_count": 1,
+        "coverage_rate": "33.3%",
+        "available_companies": [
+          "2454"
+        ]
+      },
+      "2023Q3": {
+        "reports_count": 1,
+        "coverage_rate": "33.3%",
+        "available_companies": [
+          "2454"
+        ]
+      },
+      "2023Q4": {
+        "reports_count": 0,
+        "coverage_rate": "0.0%",
+        "available_companies": []
+      },
+      "2024Q1": {
+        "reports_count": 0,
+        "coverage_rate": "0.0%",
+        "available_companies": []
+      },
+      "2024Q2": {
+        "reports_count": 0,
+        "coverage_rate": "0.0%",
+        "available_companies": []
+      },
+      "2024Q3": {
+        "reports_count": 0,
+        "coverage_rate": "0.0%",
+        "available_companies": []
+      },
+      "2024Q4": {
+        "reports_count": 0,
+        "coverage_rate": "0.0%",
+        "available_companies": []
+      },
+      "2025Q1": {
+        "reports_count": 0,
+        "coverage_rate": "0.0%",
+        "available_companies": []
+      }
+    },
+    "total_expected": 39
+  },
+  "error_summary": {
+    "total_errors": 22,
+    "error_types": {
+      "下載失敗": 1,
+      "查詢失敗": 21
+    },
+    "sample_errors": [
+      "下載失敗: 202203_2330_AI1.pdf",
+      "查詢失敗: 2330 2022Q4",
+      "查詢失敗: 2330 2023Q1",
+      "查詢失敗: 2330 2023Q2",
+      "查詢失敗: 2330 2023Q3",
+      "查詢失敗: 2330 2023Q4",
+      "查詢失敗: 2330 2024Q1",
+      "查詢失敗: 2330 2024Q2",
+      "查詢失敗: 2454 2022Q1",
+      "查詢失敗: 2454 2023Q4",
+      "查詢失敗: 2454 2024Q1",
+      "查詢失敗: 2454 2024Q2",
+      "查詢失敗: 2317 2022Q1",
+      "查詢失敗: 2317 2022Q2",
+      "查詢失敗: 2317 2022Q3",
+      "查詢失敗: 2317 2022Q4",
+      "查詢失敗: 2317 2023Q1",
+      "查詢失敗: 2317 2023Q2",
+      "查詢失敗: 2317 2023Q3",
+      "查詢失敗: 2317 2023Q4"
+    ]
+  }
+}

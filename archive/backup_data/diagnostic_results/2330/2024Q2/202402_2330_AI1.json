@@ -1,0 +1,32 @@
+{
+  "stock_code": "2330",
+  "company_name": "台積電",
+  "report_year": 2024,
+  "report_season": "Q2",
+  "currency": "TWD",
+  "unit": "千元",
+  "financials": {
+    "cash_and_equivalents": null,
+    "accounts_receivable": null,
+    "inventory": null,
+    "total_assets": null,
+    "total_liabilities": null,
+    "equity": null
+  },
+  "income_statement": {
+    "net_revenue": null,
+    "gross_profit": null,
+    "operating_income": null,
+    "net_income": null,
+    "eps": null
+  },
+  "metadata": {
+    "source": "doc.twse.com.tw",
+    "file_name": "202402_2330_AI1.pdf",
+    "file_path": "C:\\Users\\johnn\\FinancialReports\\data\\diagnostic_results\\2330\\2024Q2\\202402_2330_AI1.pdf",
+    "file_size": 7553823,
+    "crawled_at": "2025-06-27T01:03:05.407961",
+    "parser_version": "v2.3_basic",
+    "note": "需要安裝PyPDF2進行完整財報數據解析"
+  }
+}

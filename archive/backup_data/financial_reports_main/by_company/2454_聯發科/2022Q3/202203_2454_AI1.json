@@ -1,0 +1,32 @@
+{
+  "stock_code": "2454",
+  "company_name": "聯發科",
+  "report_year": 2022,
+  "report_season": "Q3",
+  "currency": "TWD",
+  "unit": "千元",
+  "financials": {
+    "cash_and_equivalents": null,
+    "accounts_receivable": null,
+    "inventory": null,
+    "total_assets": null,
+    "total_liabilities": null,
+    "equity": null
+  },
+  "income_statement": {
+    "net_revenue": null,
+    "gross_profit": null,
+    "operating_income": null,
+    "net_income": null,
+    "eps": null
+  },
+  "metadata": {
+    "source": "doc.twse.com.tw",
+    "file_name": "202203_2454_AI1.pdf",
+    "file_path": "C:\\Users\\johnn\\FinancialReports\\data\\financial_reports_main\\by_company\\2454_聯發科\\2022Q3\\202203_2454_AI1.pdf",
+    "file_size": 3168886,
+    "crawled_at": "2025-06-27T00:34:11.988615",
+    "parser_version": "v3.0_basic",
+    "note": "基本結構，可擴展PDF內容解析"
+  }
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "status": "success",
+    "stock_code": "2317",
+    "company_name": "鴻海",
+    "period": "2024Q2",
+    "timestamp": "2025-06-27T18:46:15.819216",
+    "details": "下載完成"
+  },
+  {
+    "status": "success",
+    "stock_code": "2412",
+    "company_name": "中華電",
+    "period": "2024Q2",
+    "timestamp": "2025-06-27T18:46:22.494697",
+    "details": "下載完成"
+  },
+  {
+    "status": "success",
+    "stock_code": "2881",
+    "company_name": "富邦金",
+    "period": "2024Q1",
+    "timestamp": "2025-06-27T18:46:25.636803",
+    "details": "下載完成"
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "output_dir": "data/financial_reports",
+  "test_output_dir": "data/test_results",
+  "download_delay": 2,
+  "max_retry": 3,
+  "timeout": 30,
+  "auto_validation": true,
+  "generate_json": true,
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+  "session_timeout": 60,
+  "min_file_size": 10000,
+  "supported_seasons": ["Q1", "Q2", "Q3", "Q4", "1", "2", "3", "4"],
+  "season_month_mapping": {
+    "Q1": "05",
+    "Q2": "08", 
+    "Q3": "11",
+    "Q4": "02",
+    "1": "05",
+    "2": "08",
+    "3": "11", 
+    "4": "02"
+  }
+}
