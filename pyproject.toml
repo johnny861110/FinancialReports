@@ -1,0 +1,75 @@
+[project]
+name = "financial-reports-crawler"
+version = "2.0.0"
+description = "台灣證券交易所金融報告爬蟲工具"
+readme = "README.md"
+requires-python = ">=3.9,<3.13"
+
+dependencies = [
+    # 核心依賴
+    "requests>=2.25.0",
+    "tqdm>=4.62.0",
+    "lxml>=4.6.0",
+    "pandas>=1.3.0",
+    "numpy>=1.20.0",
+    
+    # PDF 處理 - 改用 pdfplumber
+    "pdfplumber>=0.10.0",
+    "pillow>=8.0.0",
+    
+    # OCR 相關 (保留作為補充功能)
+    "opencv-python>=4.6.0",
+    "pytesseract>=0.3.13",
+    "paddlepaddle>=2.6.0",
+    "paddleocr>=2.7.0",
+    
+    # 數據處理和分析
+    "openpyxl>=3.0.0",
+    "beautifulsoup4>=4.9.0",
+    "python-dateutil>=2.8.0",
+    
+    # 日誌和配置
+    "colorlog>=6.0.0",
+    "pyyaml>=5.4.0",
+    
+    # 其他工具
+    "setuptools>=70.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0",
+    "pytest-cov>=2.12.0",
+    "black>=21.0.0",
+    "flake8>=3.9.0",
+    "mypy>=0.910",
+]
+test = [
+    "pytest>=6.0.0",
+    "pytest-mock>=3.6.0",
+    "pytest-asyncio>=0.21.0",
+]
+docs = [
+    "sphinx>=4.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+]
+
+[project.scripts]
+financial-crawler = "scripts.financial_crawler:main"
+smart-processor = "scripts.smart_processor:main"
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = {find = {where = ["."], include = ["src*", "scripts*", "config*"]}}
+package-data = { config = ["*.json", "*.yaml", "*.yml"], examples = ["*.json"] }
+
+[tool.black]
+line-length = 100
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"
+line_length = 100

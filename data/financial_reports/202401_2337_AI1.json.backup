@@ -1,0 +1,29 @@
+{
+  "stock_code": "2337",
+  "company_name": "旺宏電子",
+  "report_year": 2024,
+  "report_season": "Q1",
+  "currency": "TWD",
+  "unit": "千元",
+  "financials": {
+    "cash_and_equivalents": 78988.0,
+    "accounts_receivable": 324178.0,
+    "inventory": 211136.0
+  },
+  "income_statement": {
+    "net_income": 44170.0
+  },
+  "balance_sheet": {},
+  "cash_flow": {},
+  "metadata": {
+    "source": "doc.twse.com.tw",
+    "file_name": "202401_2337_AI1.pdf",
+    "file_path": "data\\financial_reports\\202401_2337_AI1.pdf",
+    "file_size": 1867622,
+    "created_at": "2025-07-02T21:57:13.800790",
+    "processor_version": "v2.0",
+    "last_backfill": "2025-07-07T23:49:00.389354",
+    "backfill_source": "smart_processor_enhanced",
+    "enhanced_fields_count": 6
+  }
+}

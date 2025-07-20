@@ -1,0 +1,120 @@
+{
+  "test_summary": {
+    "total_tests": 4,
+    "passed_tests": 4,
+    "success_rate": 100.0,
+    "overall_status": "PASSED"
+  },
+  "file_integrity": {
+    "raw_pdf_count": 31,
+    "crawled_json_count": 31,
+    "processed_count": 31,
+    "processing_coverage": 100.0,
+    "missing_processed": []
+  },
+  "data_quality": {
+    "total_files_checked": 31,
+    "successful_reads": 31,
+    "failed_reads": 0,
+    "quality_scores": [],
+    "confidence_scores": [],
+    "fields_found_counts": [],
+    "missing_fields": [
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data",
+      "report_period",
+      "financial_data"
+    ],
+    "processing_errors": [],
+    "companies_processed": "{'瑞昱', '聯發科', '台積電', '鴻海', '國泰金', '世芯-KY', '中華電', '富邦金', '矽統'}",
+    "unique_missing_fields": [
+      "financial_data",
+      "report_period"
+    ],
+    "companies_count": 9
+  },
+  "processing_stats": {
+    "by_company": {
+      "鴻海": 3,
+      "台積電": 5,
+      "矽統": 5,
+      "瑞昱": 5,
+      "聯發科": 5,
+      "富邦金": 1,
+      "國泰金": 1,
+      "世芯-KY": 5,
+      "中華電": 1
+    },
+    "by_period": {
+      "未知": 31
+    },
+    "by_month": {
+      "202401": 8,
+      "202402": 7,
+      "202403": 6,
+      "202404": 5,
+      "202501": 5
+    }
+  },
+  "recommendations": [
+    "發現缺失欄位: financial_data, report_period，建議改進提取邏輯"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "stock_code": "6770",
+  "company_name": "力積電",
+  "report_year": 2025,
+  "report_season": "Q1",
+  "currency": "TWD",
+  "unit": "千元",
+  "financials": {},
+  "income_statement": {},
+  "balance_sheet": {},
+  "cash_flow": {},
+  "metadata": {
+    "source": "doc.twse.com.tw",
+    "file_name": "202501_6770_AI1.pdf",
+    "file_path": "data\\financial_reports\\202501_6770_AI1.pdf",
+    "file_size": 1323588,
+    "created_at": "2025-07-08T01:17:05.940298",
+    "processor_version": "v2.0",
+    "validation_status": "valid",
+    "validation_errors": []
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "stock_code": "2363",
+  "company_name": "矽統",
+  "report_year": 2024,
+  "report_season": "Q1",
+  "currency": "TWD",
+  "unit": "千元",
+  "financials": {
+    "cash_and_equivalents": null,
+    "accounts_receivable": null,
+    "inventory": null,
+    "total_assets": null,
+    "total_liabilities": null,
+    "equity": null
+  },
+  "income_statement": {
+    "net_revenue": null,
+    "gross_profit": null,
+    "operating_income": null,
+    "net_income": null,
+    "eps": null
+  },
+  "metadata": {
+    "source": "doc.twse.com.tw",
+    "file_name": "202401_2363_AI1.pdf",
+    "file_path": "data\\financial_reports\\202401_2363_AI1.pdf",
+    "file_size": 2835433,
+    "download_url": "https://doc.twse.com.tw/pdf/202401_2363_AI1_20250627_192544.pdf",
+    "crawled_at": "2025-06-27T19:25:43.055355",
+    "parser_version": "unified_crawler_v1.0",
+    "validation": {
+      "file_exists": true,
+      "size_reasonable": true
+    },
+    "enhanced_at": "2025-07-07T23:12:09.334391",
+    "processor_version": "smart_v2.1",
+    "extraction_confidence": "low",
+    "processing_note": "Scanned PDF - requires manual review or OCR",
+    "pdf_analysis": {
+      "type": "scanned",
+      "total_pages": 47,
+      "text_pages": 1,
+      "text_ratio": 0.02127659574468085,
+      "total_text_length": 592,
+      "extracted_text": "矽統科技股份有限公司及子公司合併財務報表附註(續)\n(金額除另有註明者外，均以新臺幣千元為單位)\n18. 所得稅\n(1) 民國一一三年及一一二年一月一日至三月三十一日所得稅費用主要組成如\n下：\n認列於損益之所得稅\n113.01.01~ 112.01.01~\n113.03.31 112.03.31\n當期所得稅費用：\n當期所得稅費用 $- $(7)\n遞延所得稅費用(利益)：\n與暫時性差異之原始產生及其迴轉有\n關之遞延所得稅費用 324 523\n與課稅損失及所得稅抵減之原始產生\n及其迴轉有關之遞延所得稅 (324) (523)\n所得稅費用 $- $(7)\n(2) 所得稅申報核定情形\n截至民國一一三年三月三十一日，本公司及子公司之所得稅申報暨核定情\n形如下：\n所得稅申報暨核定情形\n本公司 核定至民國一一一年度\n子公司－慧通智聯股份有限公司 核定至民國一一一年度\n孫公司－深圳市邦統科技有限公司 申報至民國一一一年度\n孫公司－蘇州明兆光電科技有限公司 申報至民國一一一年度\n19. 每股盈餘\n基本每股盈餘金額之計算，係以當期歸屬於母公司普通股持有人之淨利除以當\n期流通在外之普通股加權平均股數。\n稀釋每股盈餘金額之計算，係以當期歸屬於母公司普通股持有人之淨利除以當\n期流通在外之普通股加權平均股數加上所有具稀釋作用之潛在普通股轉換為\n普通股時將發行之加權平均普通股股數。\n- 29 -\n"
+    }
+  },
+  "report_period": "2024Q1",
+  "financial_data": {
+    "cash_and_equivalents": null,
+    "accounts_receivable": null,
+    "inventory": null,
+    "total_assets": null,
+    "total_liabilities": null,
+    "equity": null,
+    "net_revenue": null,
+    "gross_profit": null,
+    "operating_income": null,
+    "net_income": null,
+    "eps": null,
+    "currency": "TWD",
+    "unit": "千元"
+  }
+}

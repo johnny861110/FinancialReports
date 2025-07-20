@@ -1,0 +1,92 @@
+{
+  "stock_code": "2330",
+  "company_name": "台積電",
+  "report_year": 2025,
+  "report_season": "Q1",
+  "currency": "TWD",
+  "unit": "千元",
+  "financials": {
+    "cash_and_equivalents": 2373616720.0,
+    "accounts_receivable": 234443474.0,
+    "inventory": 2526465.0,
+    "total_assets": null,
+    "total_liabilities": null,
+    "equity": null
+  },
+  "income_statement": {
+    "net_revenue": 43655565.0,
+    "gross_profit": 493395176.0,
+    "operating_income": null,
+    "net_income": 24645.0,
+    "eps": 13.95
+  },
+  "metadata": {
+    "source": "doc.twse.com.tw",
+    "file_name": "202501_2330_AI1.pdf",
+    "file_path": "data\\financial_reports\\202501_2330_AI1.pdf",
+    "file_size": 5715493,
+    "download_url": "https://doc.twse.com.tw/pdf/202501_2330_AI1_20250627_192449.pdf",
+    "crawled_at": "2025-06-27T19:24:48.414354",
+    "parser_version": "unified_crawler_v1.0",
+    "validation": {
+      "file_exists": true,
+      "size_reasonable": true
+    },
+    "last_backfill": "2025-07-07T23:49:00.545436",
+    "backfill_source": "smart_processor_enhanced",
+    "enhanced_fields_count": 8,
+    "extraction_summary": {
+      "fields_found": 6,
+      "total_possible_fields": 11,
+      "field_confidence": {
+        "cash_and_equivalents": 1.0,
+        "accounts_receivable": 1.0,
+        "inventory": 1.0,
+        "net_revenue": 1.0,
+        "net_income": 1.0,
+        "eps": 1.0
+      },
+      "field_source": {
+        "cash_and_equivalents": "text",
+        "accounts_receivable": "text",
+        "inventory": "text",
+        "net_revenue": "text",
+        "net_income": "text",
+        "eps": "text"
+      },
+      "missing_fields": [
+        "gross_profit",
+        "operating_income",
+        "total_assets",
+        "total_liabilities",
+        "equity"
+      ]
+    },
+    "enhanced_at": "2025-07-20T12:58:13.865512",
+    "processor_version": "smart_v2.1",
+    "extraction_confidence": "medium",
+    "processing_note": "Mixed PDF processed with smart extraction: 6 fields",
+    "pdf_analysis": {
+      "type": "mixed",
+      "text_ratio": 0.17,
+      "total_pages": 63,
+      "meaningful_chars": 425
+    }
+  },
+  "report_period": "2025Q1",
+  "financial_data": {
+    "cash_and_equivalents": 2373616720.0,
+    "accounts_receivable": 234443474.0,
+    "inventory": 2526465.0,
+    "total_assets": null,
+    "total_liabilities": null,
+    "equity": null,
+    "net_revenue": 43655565.0,
+    "gross_profit": 493395176.0,
+    "operating_income": null,
+    "net_income": 24645.0,
+    "eps": 13.95,
+    "currency": "TWD",
+    "unit": "千元"
+  }
+}

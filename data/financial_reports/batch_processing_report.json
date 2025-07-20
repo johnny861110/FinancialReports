@@ -1,0 +1,225 @@
+{
+  "timestamp": "2025-07-02T21:49:41.856975",
+  "total_files": 36,
+  "successful": 36,
+  "failed": 0,
+  "success_rate": 100.0,
+  "results": [
+    {
+      "file": "data\\financial_reports\\202401_2317_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202401_2330_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202401_2337_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202401_2363_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202401_2379_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202401_2454_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202401_2881_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202401_2882_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202401_3661_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202402_2317_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202402_2330_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202402_2337_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202402_2363_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202402_2379_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202402_2412_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202402_2454_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202402_3661_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202403_2317_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202403_2330_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202403_2337_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202403_2363_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202403_2379_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202403_2454_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202403_3661_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202404_2330_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202404_2337_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202404_2363_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202404_2379_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202404_2454_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202404_3661_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202501_2330_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202501_2337_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202501_2363_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202501_2379_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202501_2454_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    },
+    {
+      "file": "data\\financial_reports\\202501_3661_AI1.pdf",
+      "success": true,
+      "error": null,
+      "data_fields": 0
+    }
+  ]
+}

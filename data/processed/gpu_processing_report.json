@@ -1,0 +1,226 @@
+{
+  "total_files": 31,
+  "successful": 31,
+  "failed": 0,
+  "start_time": "2025-07-01T09:42:31.356003",
+  "processing_details": [
+    {
+      "file": "202401_2317_AI1.pdf",
+      "status": "success",
+      "processing_time": 1.4775750637054443,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202401_2317_AI1_enhanced.json"
+    },
+    {
+      "file": "202401_2330_AI1.pdf",
+      "status": "success",
+      "processing_time": 34.75845408439636,
+      "gpu_memory_used": 8.125,
+      "output_path": "data\\financial_reports\\processed\\202401_2330_AI1_enhanced.json"
+    },
+    {
+      "file": "202401_2363_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.014369726181030273,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202401_2363_AI1_enhanced.json"
+    },
+    {
+      "file": "202401_2379_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.6402485370635986,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202401_2379_AI1_enhanced.json"
+    },
+    {
+      "file": "202401_2454_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.685657262802124,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202401_2454_AI1_enhanced.json"
+    },
+    {
+      "file": "202401_2881_AI1.pdf",
+      "status": "success",
+      "processing_time": 1.821828842163086,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202401_2881_AI1_enhanced.json"
+    },
+    {
+      "file": "202401_2882_AI1.pdf",
+      "status": "success",
+      "processing_time": 3.2612102031707764,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202401_2882_AI1_enhanced.json"
+    },
+    {
+      "file": "202401_3661_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.6716618537902832,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202401_3661_AI1_enhanced.json"
+    },
+    {
+      "file": "202402_2317_AI1.pdf",
+      "status": "success",
+      "processing_time": 1.4131884574890137,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202402_2317_AI1_enhanced.json"
+    },
+    {
+      "file": "202402_2330_AI1.pdf",
+      "status": "success",
+      "processing_time": 33.21170926094055,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202402_2330_AI1_enhanced.json"
+    },
+    {
+      "file": "202402_2363_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.32550644874572754,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202402_2363_AI1_enhanced.json"
+    },
+    {
+      "file": "202402_2379_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.6564621925354004,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202402_2379_AI1_enhanced.json"
+    },
+    {
+      "file": "202402_2412_AI1.pdf",
+      "status": "success",
+      "processing_time": 2.6736083030700684,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202402_2412_AI1_enhanced.json"
+    },
+    {
+      "file": "202402_2454_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.4303598403930664,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202402_2454_AI1_enhanced.json"
+    },
+    {
+      "file": "202402_3661_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.7770199775695801,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202402_3661_AI1_enhanced.json"
+    },
+    {
+      "file": "202403_2317_AI1.pdf",
+      "status": "success",
+      "processing_time": 1.542773723602295,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202403_2317_AI1_enhanced.json"
+    },
+    {
+      "file": "202403_2330_AI1.pdf",
+      "status": "success",
+      "processing_time": 37.65992569923401,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202403_2330_AI1_enhanced.json"
+    },
+    {
+      "file": "202403_2363_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.39444565773010254,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202403_2363_AI1_enhanced.json"
+    },
+    {
+      "file": "202403_2379_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.6834018230438232,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202403_2379_AI1_enhanced.json"
+    },
+    {
+      "file": "202403_2454_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.6211137771606445,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202403_2454_AI1_enhanced.json"
+    },
+    {
+      "file": "202403_3661_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.8086788654327393,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202403_3661_AI1_enhanced.json"
+    },
+    {
+      "file": "202404_2330_AI1.pdf",
+      "status": "success",
+      "processing_time": 42.63750982284546,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202404_2330_AI1_enhanced.json"
+    },
+    {
+      "file": "202404_2363_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.46558427810668945,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202404_2363_AI1_enhanced.json"
+    },
+    {
+      "file": "202404_2379_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.7364544868469238,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202404_2379_AI1_enhanced.json"
+    },
+    {
+      "file": "202404_2454_AI1.pdf",
+      "status": "success",
+      "processing_time": 1.0522046089172363,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202404_2454_AI1_enhanced.json"
+    },
+    {
+      "file": "202404_3661_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.9331099987030029,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202404_3661_AI1_enhanced.json"
+    },
+    {
+      "file": "202501_2330_AI1.pdf",
+      "status": "success",
+      "processing_time": 36.81980609893799,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202501_2330_AI1_enhanced.json"
+    },
+    {
+      "file": "202501_2363_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.4325830936431885,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202501_2363_AI1_enhanced.json"
+    },
+    {
+      "file": "202501_2379_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.6323575973510742,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202501_2379_AI1_enhanced.json"
+    },
+    {
+      "file": "202501_2454_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.6657371520996094,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202501_2454_AI1_enhanced.json"
+    },
+    {
+      "file": "202501_3661_AI1.pdf",
+      "status": "success",
+      "processing_time": 0.6767017841339111,
+      "gpu_memory_used": 0.0,
+      "output_path": "data\\financial_reports\\processed\\202501_3661_AI1_enhanced.json"
+    }
+  ],
+  "end_time": "2025-07-01T09:46:00.981063"
+}

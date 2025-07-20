@@ -1,0 +1,27 @@
+{
+  "file_info": {
+    "filename": "202401_2317_AI1.pdf",
+    "file_size": 4207765,
+    "processing_date": "2025-07-07"
+  },
+  "company_info": {
+    "company_name": "所持股數百分比",
+    "report_period": "",
+    "report_type": "季報"
+  },
+  "financial_data": {
+    "net_revenue": 1323991647.0,
+    "gross_profit": 83662240.0,
+    "operating_income": 36750532.0,
+    "net_income": 24872602.0,
+    "eps": 1.59,
+    "cash_and_equivalents": 1163447564.0,
+    "accounts_receivable": 1131140.0,
+    "inventory": 753150052.0,
+    "total_assets": 112651696.0,
+    "total_liabilities": 138698586.0,
+    "equity": 1690830626.0
+  },
+  "extraction_method": "pdfplumber",
+  "extraction_status": "completed"
+}

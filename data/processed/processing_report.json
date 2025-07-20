@@ -1,0 +1,328 @@
+{
+  "summary": {
+    "total_files": 31,
+    "generated_at": "2025-07-01T00:13:50.675009",
+    "processor_version": "smart_batch_v1.0"
+  },
+  "files": [
+    {
+      "filename": "202401_2317_AI1_enhanced.json",
+      "stock_code": "2317",
+      "company_name": "鴻海",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.9882352941176471
+    },
+    {
+      "filename": "202401_2330_AI1_enhanced.json",
+      "stock_code": "2330",
+      "company_name": "台積電",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 3,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.8817204301075269
+    },
+    {
+      "filename": "202401_2363_AI1_enhanced.json",
+      "stock_code": "2363",
+      "company_name": "矽統",
+      "pdf_type": "scanned",
+      "confidence": "low",
+      "fields_extracted": 0,
+      "processing_note": "Scanned PDF - requires manual review or OCR",
+      "text_ratio": 0.02127659574468085
+    },
+    {
+      "filename": "202401_2379_AI1_enhanced.json",
+      "stock_code": "2379",
+      "company_name": "瑞昱",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 4,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.967741935483871
+    },
+    {
+      "filename": "202401_2454_AI1_enhanced.json",
+      "stock_code": "2454",
+      "company_name": "聯發科",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202401_2881_AI1_enhanced.json",
+      "stock_code": "2881",
+      "company_name": "富邦金",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 4,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202401_2882_AI1_enhanced.json",
+      "stock_code": "2882",
+      "company_name": "國泰金",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 4,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202401_3661_AI1_enhanced.json",
+      "stock_code": "3661",
+      "company_name": "世芯-KY",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202402_2317_AI1_enhanced.json",
+      "stock_code": "2317",
+      "company_name": "鴻海",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202402_2330_AI1_enhanced.json",
+      "stock_code": "2330",
+      "company_name": "台積電",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 3,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.9157894736842105
+    },
+    {
+      "filename": "202402_2363_AI1_enhanced.json",
+      "stock_code": "2363",
+      "company_name": "矽統",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 2,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202402_2379_AI1_enhanced.json",
+      "stock_code": "2379",
+      "company_name": "瑞昱",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 4,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.9705882352941176
+    },
+    {
+      "filename": "202402_2412_AI1_enhanced.json",
+      "stock_code": "2412",
+      "company_name": "中華電",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 4,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.9775280898876404
+    },
+    {
+      "filename": "202402_2454_AI1_enhanced.json",
+      "stock_code": "2454",
+      "company_name": "聯發科",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202402_3661_AI1_enhanced.json",
+      "stock_code": "3661",
+      "company_name": "世芯-KY",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202403_2317_AI1_enhanced.json",
+      "stock_code": "2317",
+      "company_name": "鴻海",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202403_2330_AI1_enhanced.json",
+      "stock_code": "2330",
+      "company_name": "台積電",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 3,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.9175257731958762
+    },
+    {
+      "filename": "202403_2363_AI1_enhanced.json",
+      "stock_code": "2363",
+      "company_name": "矽統",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 4,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202403_2379_AI1_enhanced.json",
+      "stock_code": "2379",
+      "company_name": "瑞昱",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 4,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.971830985915493
+    },
+    {
+      "filename": "202403_2454_AI1_enhanced.json",
+      "stock_code": "2454",
+      "company_name": "聯發科",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202403_3661_AI1_enhanced.json",
+      "stock_code": "3661",
+      "company_name": "世芯-KY",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202404_2330_AI1_enhanced.json",
+      "stock_code": "2330",
+      "company_name": "台積電",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 3,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.9112903225806451
+    },
+    {
+      "filename": "202404_2363_AI1_enhanced.json",
+      "stock_code": "2363",
+      "company_name": "矽統",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 4,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202404_2379_AI1_enhanced.json",
+      "stock_code": "2379",
+      "company_name": "瑞昱",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 4,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.9512195121951219
+    },
+    {
+      "filename": "202404_2454_AI1_enhanced.json",
+      "stock_code": "2454",
+      "company_name": "聯發科",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.9922480620155039
+    },
+    {
+      "filename": "202404_3661_AI1_enhanced.json",
+      "stock_code": "3661",
+      "company_name": "世芯-KY",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202501_2330_AI1_enhanced.json",
+      "stock_code": "2330",
+      "company_name": "台積電",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 3,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.873015873015873
+    },
+    {
+      "filename": "202501_2363_AI1_enhanced.json",
+      "stock_code": "2363",
+      "company_name": "矽統",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 4,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202501_2379_AI1_enhanced.json",
+      "stock_code": "2379",
+      "company_name": "瑞昱",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 4,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 0.9682539682539683
+    },
+    {
+      "filename": "202501_2454_AI1_enhanced.json",
+      "stock_code": "2454",
+      "company_name": "聯發科",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    },
+    {
+      "filename": "202501_3661_AI1_enhanced.json",
+      "stock_code": "3661",
+      "company_name": "世芯-KY",
+      "pdf_type": "text_based",
+      "confidence": "high",
+      "fields_extracted": 5,
+      "processing_note": "Text-based PDF processed successfully",
+      "text_ratio": 1.0
+    }
+  ],
+  "statistics": {
+    "text_based": 30,
+    "scanned": 1,
+    "mixed": 0,
+    "high_confidence": 30,
+    "medium_confidence": 0,
+    "low_confidence": 1,
+    "total_fields_extracted": 126
+  }
+}
