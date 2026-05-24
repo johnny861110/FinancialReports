@@ -49,6 +49,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# uv
+# uv.lock is intentionally committed (do not ignore it)
+
 # IDE
 .vscode/
 .idea/
@@ -69,12 +72,27 @@ Thumbs.db
 *.tmp
 *.bak
 *.log
-data/temp/
-data/test_*/
 output/
 temp/
+
+# Data directory (financial report data, generated outputs)
+data/
+
+# Environment variables
+.env
+.env.*
+!.env.example
 
 # OCR temporary files
 *.png
 *.jpg
 *.jpeg
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Graphify output (generated artifacts)
+graphify-out/
+src/graphify-out/
