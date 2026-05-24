@@ -1,635 +1,716 @@
-# 🏦 財務報告處理工具 v2.0
+# Financial Reports Insight Engine
 
-[![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![uv](https://img.shields.io/badge/uv-supported-orange.svg)](https://github.com/astral-sh/uv)
+台灣上市櫃公司財報分析引擎，將 XBRL / iXBRL / PDF 原始文件轉換為結構化財務資料、計算財務指標、自動偵測異常事件，並產生 LLM Agent 可直接消費的洞察卡片。
 
-台灣證券交易所財務報告智慧處理工具，採用現代化架構設計，支援自動爬取、PDF 解析、OCR 識別和數據結構化。
-
-## ✨ 主要特色
-
-- 🚀 **現代化架構** - 基於工廠模式和依賴注入的模組化設計
-- 📊 **智慧解析** - 主打 pdfplumber 引擎，輔以 PaddleOCR 增強 OCR 功能
-- 🔄 **自動爬取** - 台股財報自動下載，支援歷史數據回填
-- 📈 **數據處理** - 財務數據提取、結構化輸出和品質驗證
-- 🛡️ **錯誤處理** - 統一異常處理機制，完整的錯誤追蹤
-- 🎯 **批次處理** - 支援 JSON 配置檔案的大量檔案批次作業
-- 🔧 **彈性配置** - 完整的配置管理系統，支援動態服務註冊
-- 📋 **季度邏輯** - 正確的季度編號處理（Q1-Q4 對應 01-04）
-
-## 🚀 快速開始
-
-### 環境需求
-
-- **Python 3.9-3.12** (推薦 3.10+)
-- **UV 套件管理器** (推薦方式)
-- **Windows/Linux/macOS**
-- **記憶體**: 建議 4GB+ (OCR 處理需要)
-
-### 安裝
-
-```bash
-# 1. 克隆專案
-git clone <repository-url>
-cd FinancialReports
-
-# 2. 安裝 UV (如果尚未安裝)
-pip install uv
-
-# 3. 安裝依賴套件
-uv sync
-
-# 4. 驗證安裝 - 應該看到系統資訊
-uv run python main.py --info
 ```
-
-**✅ 安裝成功標誌**: 出現系統資訊面板，顯示可用處理器和配置狀態
-
-## 📖 使用方式
-
-### 基本命令
-
-```bash
-# 查看系統資訊和可用功能
-uv run python main.py --info
-
-# 處理單個 PDF 檔案
-uv run python main.py --pdf path/to/report.pdf
-
-# 財務報告完整處理 (季度格式: Q1, Q2, Q3, Q4)
-uv run python main.py --financial \
-  --pdf report.pdf \
-  --stock 2330 \
-  --company "台積電" \
-  --year 2024 \
-  --season Q1
-
-# 批次處理 JSON 查詢檔案
-uv run python main.py --batch examples/batch_query.json
+XBRL / iXBRL / PDF / FinMind API
+            │
+            ▼  Stage 1: Ingest
+     下載原始文件（TWSE / MOPS / FinMind）
+            │
+            ▼  Stage 2: Extract
+  financial_facts（標準化財務數字）
+  document_chunks（PDF 文字片段，供 RAG）
+            │
+            ▼  Stage 3: Validate
+    驗證財務邏輯、計算品質分數（0–1）
+            │
+            ▼  Stage 4: Insights
+  financial_metrics  ← 毛利率、ROE、FCF…
+  period_comparisons ← YoY / QoQ 比較
+  detected_events    ← 自動偵測財務異常
+  insight_cards      ← Agent 可讀摘要
+            │
+            ▼
+  fr ask "台積電 2024 Q1 有什麼重點？"
 ```
-
-### 🗓️ 季度對應邏輯
-
-專案使用以下季度對應格式，與台股財報檔名規則一致：
-
-- **Q1** → `01` (第一季度，對應檔名 `YYYY01_股票代碼_AI1.pdf`)
-- **Q2** → `02` (第二季度，對應檔名 `YYYY02_股票代碼_AI1.pdf`)  
-- **Q3** → `03` (第三季度，對應檔名 `YYYY03_股票代碼_AI1.pdf`)
-- **Q4** → `04` (第四季度，對應檔名 `YYYY04_股票代碼_AI1.pdf`)
-
-### 📝 批次查詢範例
-
-創建 `batch_query.json` 檔案：
-
-```json
-[
-  {
-    "stock_code": "2330",
-    "company_name": "台積電",
-    "year": 2024,
-    "season": "Q1"
-  },
-  {
-    "stock_code": "2454", 
-    "company_name": "聯發科",
-    "year": 2024,
-    "season": "Q1"
-  }
-]
-```
-
-然後執行：
-
-```bash
-uv run python main.py --batch batch_query.json
-```
-
-## 📁 專案架構
-
-```text
-FinancialReports/
-├── 📄 main.py                    # 主程式入口點
-├── 📋 pyproject.toml             # 專案配置和依賴管理 (uv)
-├── 🔒 uv.lock                   # 依賴版本鎖定檔
-├── 📚 src/                       # 核心程式碼模組
-│   ├── 🏗️ core/                  # 核心架構模組
-│   │   ├── **init**.py          # 基礎類別、介面與工廠函數
-│   │   ├── config.py            # 配置管理與依賴注入容器
-│   │   ├── crawler.py           # 財報爬蟲核心邏輯
-│   │   └── exceptions.py        # 統一異常處理機制
-│   ├── 🔧 processors/            # 數據處理器模組
-│   │   ├── pdf_processor.py     # PDF 處理引擎 (pdfplumber + OCR)
-│   │   └── smart_processor.py   # 智慧財務數據處理器
-│   ├── 📊 tracking/              # 進度追蹤與監控
-│   │   └── progress_tracker.py  # 處理進度實時追蹤
-│   ├── 🛠️ utils/                 # 通用工具函數
-│   │   └── helpers.py           # 季度轉換、檔案操作等
-│   ├── ✅ validators/            # 數據驗證器
-│   │   └── financial_validator.py # 財務數據品質驗證
-│   └── 🏭 app_factory.py         # 應用程式工廠與服務配置
-├── 📜 scripts/                   # 執行腳本集合
-│   ├── financial_crawler.py     # 獨立財報爬蟲腳本
-│   ├── financial_backfill.py    # 歷史數據回填腳本
-│   ├── smart_processor.py       # 智慧處理器執行腳本
-│   ├── batch_extract.py         # 批次提取執行腳本
-│   └── backfill_financial_data.py # 財務數據回填腳本
-├── ⚙️ config/                    # 配置檔案目錄
-│   ├── crawler_config.json      # 爬蟲行為配置
-│   └── xbrl_tags.json          # XBRL 標籤定義檔
-├── 📊 data/                      # 數據存儲目錄
-│   ├── financial_reports/       # 原始財報檔案 (PDF + JSON)
-│   ├── processed/               # 處理後的結構化數據
-│   ├── processing_tracker.db    # SQLite 追蹤資料庫
-│   └── master_index.json       # 主索引檔案
-├── 📋 examples/                  # 使用範例檔案
-│   ├── batch_query.json         # 基本批次查詢範例
-│   └── semiconductor_batch.json # 半導體產業批次查詢範例
-├── 🧪 tests/                     # 測試套件
-│   ├── test_crawler.py          # 爬蟲功能單元測試
-│   ├── test_processor.py        # 處理器功能測試
-│   ├── test_all.py             # 完整功能集成測試
-│   └── fixtures/                # 測試用固定資料
-├── 📚 docs/                      # 技術文檔
-│   ├── API.md                   # API 使用文檔
-│   ├── DEPLOYMENT.md            # 部署配置指南
-│   └── DEVELOPMENT.md           # 開發環境設定
-└── 📝 logs/                      # 系統日誌目錄
-    └── application.log          # 主要應用程式日誌
-```
-
-## 🔧 核心功能
-
-### 1. 財務報告爬取
-
-- **自動下載**: 從台灣證券交易所自動下載財務報告 PDF
-- **季度管理**: 支援 Q1-Q4 季度格式，自動轉換為檔案編號 01-04
-- **批次處理**: 支援多家公司、多季度的批次下載作業
-- **進度追蹤**: 實時顯示下載進度和處理狀態
-
-### 2. PDF 智慧解析
-
-- **主要引擎**: pdfplumber 高精度文字和表格提取
-- **輔助 OCR**: PaddleOCR 針對圖像化內容進行文字識別
-- **表格識別**: 自動識別和提取財務報表結構
-- **錯誤處理**: 完整的異常捕獲和降級處理機制
-
-### 3. 財務數據結構化
-
-- **關鍵指標提取**: 自動提取營收、淨利、EPS 等關鍵財務指標
-- **數據驗證**: 內建財務數據合理性和完整性驗證
-- **格式統一**: 輸出標準化的 JSON 格式結構化數據
-- **增強處理**: 智慧財務處理器提供進階分析和補強功能
-
-## 🔨 API 參考
-
-### 命令行參數
-
-```bash
-uv run python main.py [OPTIONS]
-
-選項:
-  --help                    顯示幫助資訊
-  --info                    顯示系統資訊和可用功能
-  --config CONFIG           指定配置檔案路徑 (預設: config/crawler_config.json)
-  --output OUTPUT           指定輸出目錄 (預設: data/financial_reports)
-
-處理模式:
-  --pdf PDF                 處理單個 PDF 檔案
-  --batch BATCH            批次處理 JSON 查詢檔案或目錄
-  --financial              財務報告處理模式 (需搭配其他參數)
-
-財務報告參數:
-  --stock STOCK            股票代碼 (例: 2330)
-  --company COMPANY        公司名稱 (例: "台積電") 
-  --year YEAR              年份 (例: 2024)
-  --season SEASON          季度 (Q1, Q2, Q3, Q4)
-```
-
-### 核心 API 使用
-
-#### 1. PDF 處理引擎
-
-```python
-from src.core import get_config
-from src.processors.pdf_processor import ModernPDFProcessor
-
-# 初始化處理器
-config = get_config()
-processor = ModernPDFProcessor(config.processing)
-
-# 處理 PDF 檔案
-result = processor.process("report.pdf", "output.json")
-if result.success:
-    print(f"處理成功: {result.data}")
-else:
-    print(f"處理失敗: {result.error}")
-```
-
-#### 2. 財務報告處理
-
-```python
-from src.app_factory import setup_application, create_financial_report
-from src.processors.smart_processor import SmartFinancialProcessor
-
-# 設置應用程式環境
-config = setup_application()
-
-# 創建財報實例
-report = create_financial_report("2330", "台積電", 2024, "Q1")
-
-# 智慧處理
-processor = SmartFinancialProcessor()
-result = processor.process_financial_data(raw_data)
-```
-
-#### 3. 批次處理系統
-
-```python
-from pathlib import Path
-import json
-
-# 準備批次查詢配置
-batch_config = [
-    {
-        "stock_code": "2330",
-        "company_name": "台積電",
-        "year": 2024,
-        "season": "Q1"
-    }
-]
-
-# 執行批次處理
-from main import process_batch_file
-results = process_batch_file(batch_config)
-```
-
-### 輸出格式
-
-#### 財務報告 JSON 結構
-
-```json
-{
-  "stock_code": "2330",
-  "company_name": "台積電", 
-  "year": 2024,
-  "season": "Q1",
-  "created_at": "2024-01-15T10:30:00",
-  "metadata": {
-    "source": "doc.twse.com.tw",
-    "file_name": "202401_2330_AI1.pdf",
-    "file_size": 1234567,
-    "processing_engine": "pdfplumber",
-    "ocr_used": false
-  },
-  "financial_data": {
-    "balance_sheet": {
-      "現金及銀行存款": 2373616720,
-      "應收票據及帳款": 234443474,
-      "存貨": 456789012
-    },
-    "income_statement": {
-      "營業收入": 43655565,
-      "營業成本": 32100000,
-      "稅後淨利": 24855000,
-      "基本每股盈餘": 13.95
-    },
-    "cash_flow": {
-      "營業活動現金流量": 15000000,
-      "投資活動現金流量": -8000000,
-      "融資活動現金流量": -3000000
-    }
-  },
-  "validation_results": {
-    "passed": true,
-    "warnings": [],
-    "errors": []
-  }
-}
-```
-
-## 📦 進階腳本使用
-
-### 財報爬蟲腳本
-
-```bash
-# 下載特定公司財報
-uv run python scripts/financial_crawler.py \
-  --stock-code 2330 \
-  --company "台積電" \
-  --year 2024 \
-  --season Q1
-
-# 批次下載多家公司
-uv run python scripts/financial_crawler.py \
-  --batch examples/semiconductor_batch.json
-```
-
-### 智慧處理器腳本
-
-```bash
-# 進階財務數據分析
-uv run python scripts/smart_processor.py \
-  --input data/financial_reports/ \
-  --output data/processed/ \
-  --enhanced
-
-# 處理特定檔案
-uv run python scripts/smart_processor.py \
-  --pdf 202401_2330_AI1.pdf \
-  --analysis-level advanced
-```
-
-### 數據回填腳本
-
-```bash
-# 回填指定期間的財報數據
-uv run python scripts/financial_backfill.py \
-  --start-year 2020 \
-  --end-year 2024 \
-  --quarters Q1,Q2,Q3,Q4
-
-# 針對特定公司回填
-uv run python scripts/backfill_financial_data.py \
-  --stocks 2330,2454,2317 \
-  --year 2024
-```
-
-## ⚙️ 配置管理
-
-### 主配置檔案 (`config/crawler_config.json`)
-
-```json
-{
-  "processing": {
-    "pdf_engine": "pdfplumber",     // 主要 PDF 處理引擎
-    "ocr_engine": "paddleocr",      // OCR 輔助引擎
-    "auto_validate": true,          // 自動數據驗證
-    "low_memory_mode": false        // 低記憶體模式
-  },
-  "crawler": {
-    "delay": 1.0,                   // 請求間隔 (秒)
-    "retries": 3,                   // 重試次數
-    "timeout": 30,                  // 請求超時 (秒)
-    "user_agent": "FinancialCrawler/2.0"
-  },
-  "paths": {
-    "data_dir": "data",             // 數據目錄
-    "output_dir": "data/financial_reports", // 輸出目錄
-    "log_dir": "logs"               // 日誌目錄
-  }
-}
-```
-
-### 環境變數支援
-
-```bash
-# 日誌等級設定
-export LOG_LEVEL=INFO
-
-# 自定義數據目錄
-export FINANCIAL_DATA_DIR=/custom/path/data
-
-# OCR 模型快取目錄
-export PADDLE_MODEL_DIR=/path/to/models
-
-# 低記憶體模式
-export LOW_MEMORY_MODE=true
-```
-
-## 🧪 測試與驗證
-
-### 執行測試套件
-
-```bash
-# 完整測試套件 - 測試所有核心功能
-uv run python tests/test_all.py
-
-# 爬蟲功能專項測試
-uv run python tests/test_crawler.py
-
-# PDF 處理器專項測試  
-uv run python tests/test_processor.py
-
-# 執行所有測試並顯示覆蓋率
-uv run pytest tests/ --cov=src --cov-report=html
-```
-
-### 功能驗證檢查清單
-
-- ✅ **配置管理系統** - 依賴注入容器正常運作
-- ✅ **PDF 處理引擎** - pdfplumber 文字和表格提取
-- ✅ **OCR 輔助功能** - PaddleOCR 圖像文字識別
-- ✅ **財務數據驗證** - 數值合理性和完整性檢查
-- ✅ **季度邏輯處理** - Q1-Q4 與檔名 01-04 正確對應
-- ✅ **批次處理系統** - JSON 配置檔案批次執行
-- ✅ **異常處理機制** - 統一錯誤捕獲和回報
-- ✅ **進度追蹤功能** - 實時處理狀態監控
-
-## 📊 使用範例與實戰
-
-### 範例 1: 單一財報處理
-
-```bash
-# 處理台積電 2024 Q1 財報
-uv run python main.py --financial \
-  --pdf "data/financial_reports/202401_2330_AI1.pdf" \
-  --stock 2330 \
-  --company "台積電" \
-  --year 2024 \
-  --season Q1
-```
-
-### 範例 2: 批次下載與處理
-
-```bash
-# Step 1: 批次下載財報
-uv run python scripts/financial_crawler.py \
-  --batch examples/semiconductor_batch.json
-
-# Step 2: 批次處理下載的檔案
-uv run python main.py --batch data/financial_reports/
-```
-
-### 範例 3: 歷史數據回填
-
-```bash
-# 回填台積電近 3 年所有季度數據
-uv run python scripts/financial_backfill.py \
-  --stocks 2330 \
-  --start-year 2022 \
-  --end-year 2024 \
-  --quarters Q1,Q2,Q3,Q4
-```
-
-### 範例 4: 自定義批次配置
-
-創建 `custom_batch.json`：
-
-```json
-[
-  {"stock_code": "2330", "company_name": "台積電", "year": 2024, "season": "Q4"},
-  {"stock_code": "2454", "company_name": "聯發科", "year": 2024, "season": "Q4"},
-  {"stock_code": "2881", "company_name": "富邦金", "year": 2024, "season": "Q4"}
-]
-```
-
-執行批次處理：
-
-```bash
-uv run python main.py --batch custom_batch.json
-```
-
-## 🔧 開發與擴展
-
-### 添加自定義處理器
-
-```python
-# custom_processor.py
-from src.core import BaseProcessor, ProcessingResult
-
-class CustomAnalysisProcessor(BaseProcessor):
-    """自定義財務分析處理器"""
-    
-    def process(self, input_path, output_path=None):
-        try:
-            # 實現自定義分析邏輯
-            analysis_result = self._perform_custom_analysis(input_path)
-            return ProcessingResult.success(analysis_result)
-        except Exception as e:
-            return ProcessingResult.failure(str(e))
-    
-    def _perform_custom_analysis(self, input_path):
-        # 自定義分析實現
-        return {"custom_metric": "calculated_value"}
-```
-
-### 註冊新處理器
-
-```python
-# 在 app_factory.py 中註冊
-from src.core.config import register_service
-from custom_processor import CustomAnalysisProcessor
-
-# 註冊自定義處理器
-register_service('custom_analysis', CustomAnalysisProcessor())
-```
-
-### 自定義配置擴展
-
-```python
-# 擴展配置系統
-from src.core import get_config
-
-config = get_config()
-config.custom_settings = {
-    "analysis_threshold": 0.95,
-    "enable_advanced_metrics": True
-}
-```
-
-## 🚨 常見問題解決
-
-### Q: PaddleOCR 初始化很慢？
-
-**A:** 首次使用會下載 AI 模型檔案（約 8MB），請耐心等候。後續使用會快很多。
-
-```bash
-# 預先下載模型到指定目錄
-export PADDLE_MODEL_DIR=/path/to/models
-uv run python -c "import paddleocr; paddleocr.PaddleOCR()"
-```
-
-### Q: PDF 處理失敗？
-
-**A:** 確認檔案格式和路徑正確，檢查檔案是否損壞。
-
-```bash
-# 使用詳細模式查看錯誤信息
-export LOG_LEVEL=DEBUG
-uv run python main.py --pdf problematic_file.pdf
-```
-
-### Q: 爬蟲被網站阻擋？
-
-**A:** 調整請求間隔和重試策略。
-
-```json
-// config/crawler_config.json
-{
-  "crawler": {
-    "delay": 2.0,        // 增加延遲
-    "retries": 5,        // 增加重試次數
-    "timeout": 60        // 增加超時時間
-  }
-}
-```
-
-### Q: 記憶體使用過高？
-
-**A:** 啟用低記憶體模式或調整批次大小。
-
-```bash
-# 方法 1: 環境變數
-export LOW_MEMORY_MODE=true
-
-# 方法 2: 分批處理
-uv run python main.py --batch small_batch.json
-```
-
-## 📈 效能優化建議
-
-- **GPU 加速**: 安裝 CUDA 版本的 PaddleOCR 以加速 OCR 處理
-- **並行處理**: 在配置中啟用多執行緒處理模式
-- **快取機制**: 使用處理結果快取減少重複計算
-- **記憶體優化**: 大量檔案處理時啟用低記憶體模式
-
-## 🤝 貢獻與開發
-
-### 貢獻流程
-
-1. **Fork 專案** - 在 GitHub 上 Fork 此專案
-2. **創建分支** - `git checkout -b feature/amazing-feature`
-3. **開發功能** - 遵循現有的程式碼風格和架構
-4. **執行測試** - 確保所有測試通過
-5. **提交變更** - `git commit -m 'Add amazing feature'`
-6. **推送分支** - `git push origin feature/amazing-feature`
-7. **發起 PR** - 開啟 Pull Request 並描述變更內容
-
-### 開發環境設定
-
-```bash
-# 安裝開發依賴
-uv sync --group dev
-
-# 程式碼格式檢查
-uv run black src/ tests/
-uv run flake8 src/ tests/
-
-# 型別檢查
-uv run mypy src/
-```
-
-## 📄 授權與版權
-
-本專案採用 **MIT 授權條款** - 詳見 [LICENSE](LICENSE) 檔案。
-
-## 🔗 相關資源
-
-- 📚 **[API 參考文檔](docs/API.md)** - 完整 API 使用說明
-- 🚀 **[部署指南](docs/DEPLOYMENT.md)** - 生產環境部署配置
-- 💻 **[開發指南](docs/DEVELOPMENT.md)** - 開發環境和工具鏈設定
-- 📖 **[架構重構指南](docs/REFACTORING_GUIDE.md)** - 系統架構演進說明
-
-## � 支援與回饋
-
-遇到問題或有建議？歡迎透過以下方式聯繫：
-
-- 📧 **提交 Issue** - 回報 Bug 或提出功能請求
-- 💬 **參與討論** - 在 Discussion 區域分享經驗和想法
-- 🌟 **給予 Star** - 如果專案對您有幫助，請給予 Star 支持
 
 ---
 
-**🎯 現代化的財務報告處理解決方案，讓數據分析更簡單、更準確！**
+## 目錄
 
-⭐ **如果這個專案對您有幫助，請給予 Star 支持！** ⭐
+1. [系統需求與安裝](#1-系統需求與安裝)
+2. [快速開始](#2-快速開始)
+3. [管道四階段詳解](#3-管道四階段詳解)
+4. [CLI 完整指令參考](#4-cli-完整指令參考)
+5. [資料來源說明](#5-資料來源說明)
+6. [資料庫結構](#6-資料庫結構)
+7. [財務數字標準化](#7-財務數字標準化)
+8. [計算指標與分析](#8-計算指標與分析)
+9. [驗證規則](#9-驗證規則)
+10. [專案結構](#10-專案結構)
+11. [開發指南](#11-開發指南)
+
+---
+
+## 1. 系統需求與安裝
+
+**需求：**
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) 套件管理工具
+
+**安裝步驟：**
+
+```bash
+git clone <repo-url>
+cd FinancialReports
+
+# 安裝核心依賴
+uv sync
+
+# 建議同時安裝 PDF 解析（大多數情況需要）
+uv sync --extra pdf
+```
+
+**可選功能模組（Extra）：**
+
+| Extra | 安裝指令 | 啟用功能 | 套件 |
+|-------|----------|----------|------|
+| `pdf` | `uv sync --extra pdf` | PDF 文字與表格萃取 | pdfplumber, pypdfium2 |
+| `ocr` | `uv sync --extra ocr` | 掃描版 PDF 識別 | PaddleOCR, OpenCV |
+| `vector` | `uv sync --extra vector` | 向量語意搜尋 | ChromaDB, sentence-transformers |
+| `llm` | `uv sync --extra llm` | 自然語言問答 | openai, tiktoken |
+| `all` | `uv sync --extra all` | 全部功能 | — |
+
+**環境變數（`.env`）：**
+
+```bash
+cp .env.example .env
+# 填入以下設定
+OPENAI_API_KEY=sk-...       # fr ask 自然語言查詢時需要
+FINMIND_TOKEN=              # FinMind 付費 token（免費層不需要）
+```
+
+---
+
+## 2. 快速開始
+
+### 單筆執行
+
+```bash
+# 完整跑完四個階段（下載 → 解析 → 驗證 → 產生洞察）
+uv run fr run 2330 2024 Q1
+```
+
+執行完成後，可查看結果：
+
+```bash
+uv run fr show 2330 2024 Q1
+```
+
+### 批次執行 20 筆
+
+```bash
+uv run fr batch examples/test_20.json --concurrency 4
+```
+
+批次 JSON 格式如下，每筆指定股票代碼、年份、季別：
+
+```json
+[
+  { "stock_code": "2330", "company_name": "台積電",  "year": 2024, "quarter": "Q1" },
+  { "stock_code": "2317", "company_name": "鴻海",    "year": 2024, "quarter": "Q2" },
+  { "stock_code": "2454", "company_name": "聯發科",  "year": 2024, "quarter": "Q3" }
+]
+```
+
+**欄位說明：**
+
+| 欄位 | 型別 | 必填 | 說明 |
+|------|------|------|------|
+| `stock_code` | string | ✓ | 台灣股票代碼（四位數字） |
+| `company_name` | string | ✗ | 中文名稱，僅供記錄，不影響處理 |
+| `year` | int | ✓ | 西元年份，例如 `2024` |
+| `quarter` | string | ✓ | `"Q1"` / `"Q2"` / `"Q3"` / `"Q4"` |
+
+### 自然語言查詢
+
+```bash
+# 需要 OPENAI_API_KEY 與 --extra llm
+uv run fr ask "這季毛利率為什麼下滑？" --stock 2330 --year 2024 --quarter Q1
+uv run fr ask "自由現金流狀況如何？" --stock 2454 --year 2024 --quarter Q2
+```
+
+---
+
+## 3. 管道四階段詳解
+
+每個階段都具備**幂等性保護**：已完成的階段預設跳過，除非加上 `--force`。
+
+### Stage 1 — Ingest（下載）
+
+```bash
+uv run fr ingest 2330 2024 Q1
+```
+
+從三個來源平行非同步下載原始文件：
+
+| 來源 | 取得內容 | 說明 |
+|------|----------|------|
+| MOPS | XBRL instance document | 結構化財務數字主要來源 |
+| MOPS | iXBRL HTML | XBRL 不可用時的備援 |
+| TWSE / 本地快取 | PDF 財務報告 | 文字萃取與附註 |
+
+- PDF 優先使用本地快取（`data/financial_reports/`），不存在才連線下載
+- 本地 PDF 命名規則：`{期間碼}_{股票代碼}_AI1.pdf`
+  - 例：`202401_2330_AI1.pdf`（台積電 2024 Q1）
+  - 期間碼：Q1=`01`、Q2=`02`、Q3=`03`、Q4=`04`
+- 所有下載記錄存入 `source_documents` 表（含路徑、大小、checksum）
+- 完成後 filing status 更新為 `ingested`
+
+### Stage 2 — Extract（萃取）
+
+```bash
+uv run fr extract 2330 2024 Q1
+```
+
+按優先級依序嘗試三種財務數字來源：
+
+**優先級 1：XBRL**（信心度 1.0）
+- 解析 XML instance document
+- 建立 context map（context_ref → 期間起訖日）
+- 對應 ~100 個 XBRL tag → canonical 欄位名稱
+
+**優先級 2：iXBRL**（信心度 0.95）
+- 從 HTML 中解析 `ix:nonFraction` 元素
+- 取出 tag 名稱與數值，邏輯同 XBRL
+
+**優先級 3：FinMind API**（信心度 0.95）
+- 當 XBRL / iXBRL 均無法取得時啟用
+- 非同步並行查詢三個 dataset：
+  - `TaiwanStockFinancialStatements`（損益表）
+  - `TaiwanStockBalanceSheet`（資產負債表）
+  - `TaiwanStockCashFlowsStatement`（現金流量表）
+- 過濾至目標季末日期，轉換為 canonical 欄位
+- 值從完整新台幣（元）自動換算為千元
+
+**PDF 文字萃取**（與上述平行進行）
+- 萃取每一頁全文 → `document_pages`
+- 偵測財務章節（損益表、資產負債表、現金流量表等）→ `document_sections`
+- 切割為 RAG 文字片段（~600 字/片段，50 字重疊）→ `document_chunks`
+- 無 XBRL 時額外嘗試 PDF 表格解析（信心度 0.75）
+
+所有財務數字存入 `financial_facts`，完成後 status 更新為 `extracted`。
+
+**輸出範例：**
+```
+2330_2024Q1: facts=21, chunks=2681, status=completed
+```
+
+### Stage 3 — Validate（驗證）
+
+```bash
+uv run fr validate 2330 2024 Q1
+```
+
+執行七條財務邏輯驗證規則，並計算整體品質分數：
+
+| 規則 | 檢查內容 | 嚴重度 |
+|------|----------|--------|
+| `balance_sheet_equation` | 資產 = 負債 + 權益（±1% 容許誤差） | error |
+| `gross_profit_lte_revenue` | 毛利 ≤ 營收 | error |
+| `income_consistency` | 營業利益 ≤ 毛利 | error |
+| `eps_consistency` | EPS 與淨利正負號一致 | error |
+| `current_ratio_positive` | 流動比率 > 0 | warning |
+| `cf_quality` | 營業現金流 / 淨利 ≥ 0.7 | warning |
+| `revenue_positive` | 營收 > 0 | info |
+
+**品質分數（0.0–1.0）：**
+
+```
+quality_score = 0.40 × XBRL 覆蓋率
+              + 0.30 × 關鍵欄位完整度（9 項）
+              + 0.20 × 驗證通過率
+              + 0.10 × 佐證覆蓋率
+```
+
+九項關鍵欄位：net_revenue、gross_profit、operating_income、net_income、eps_basic、total_assets、total_liabilities、equity、operating_cash_flow
+
+完成後 status 更新為 `validated`。
+
+### Stage 4 — Insights（洞察）
+
+```bash
+uv run fr insights 2330 2024 Q1
+```
+
+**計算財務指標** → 存入 `financial_metrics`：
+
+| 指標 | 公式 |
+|------|------|
+| gross_margin | 毛利 / 營收 |
+| operating_margin | 營業利益 / 營收 |
+| net_margin | 淨利 / 營收 |
+| current_ratio | 流動資產 / 流動負債 |
+| debt_to_equity | 總負債 / 權益 |
+| roe | 淨利 / 權益 |
+| roa | 淨利 / 總資產 |
+| book_value_per_share | 權益 / (股本 / 面額 10 元) |
+| free_cash_flow | 營業現金流 − \|資本支出\| |
+| cf_quality | 營業現金流 / 淨利 |
+
+**計算 YoY / QoQ 比較** → 存入 `period_comparisons`：
+- 對每個共同欄位計算：絕對變化量、百分比變化、方向（up/down/flat）
+- 顯著性分級：large（≥10%）/ moderate（≥3%）/ small（<3%）
+
+**偵測財務事件** → 存入 `detected_events`：
+
+| 事件 | 觸發條件 | 嚴重度 |
+|------|----------|--------|
+| revenue_growth_acceleration | YoY 營收成長 > 30% | info |
+| revenue_decline | YoY 營收衰退 < −10% | warning |
+| gross_margin_compression | YoY 毛利率下滑 < −3% | warning |
+| fcf_negative | 自由現金流 < 0 | warning |
+| inventory_buildup | QoQ 存貨成長 > 20% 且營收低成長 | info |
+| cash_flow_quality_warning | 現金流品質 < 0.7 | warning |
+
+**產生洞察卡片** → 存入 `insight_cards`（10 種）：
+
+| 卡片類型 | 說明 |
+|----------|------|
+| performance_summary | 頂層財務概覽（營收、淨利、EPS、毛利率） |
+| revenue_growth | 營收 YoY 變化分析 |
+| margin_change | 毛利率 / 營業利益率 / 淨利率趨勢 |
+| profitability_change | 淨利與 EPS 變化 |
+| cash_flow_quality | 現金流品質（OCF vs 淨利） |
+| balance_sheet_strength | 資產 / 負債 / 權益概覽 |
+| working_capital_change | QoQ 流動性指標 |
+| capex_and_investment | 資本支出趨勢 |
+| debt_and_liquidity | 槓桿與流動比率 |
+| risk_and_commitments | 驗證發現的風險因子 |
+
+完成後 status 更新為 `insight_ready`。
+
+---
+
+## 4. CLI 完整指令參考
+
+### 管道指令
+
+```bash
+# 完整四階段
+uv run fr run <stock_code> <year> <quarter> [選項]
+
+# 單一階段
+uv run fr ingest   <stock_code> <year> <quarter>
+uv run fr extract  <stock_code> <year> <quarter>
+uv run fr validate <stock_code> <year> <quarter>
+uv run fr insights <stock_code> <year> <quarter>
+
+# 批次
+uv run fr batch <batch.json> [選項]
+```
+
+**通用選項：**
+
+| 選項 | 預設值 | 適用指令 | 說明 |
+|------|--------|----------|------|
+| `--db PATH` | `data/financial.db` | 全部 | SQLite 資料庫路徑 |
+| `--output-dir PATH` | `data/raw` | ingest, run | 原始文件下載目錄 |
+| `--force` | False | 全部 | 強制重新執行已完成的階段 |
+| `--stages TEXT` | 全部 | run | 只執行指定階段，逗號分隔 |
+| `--concurrency INT` | 4 | batch | 最大同時處理筆數 |
+
+### 查詢指令
+
+```bash
+# 表格顯示（預設）
+uv run fr show 2330 2024 Q1
+
+# JSON 格式輸出
+uv run fr show 2330 2024 Q1 --format json
+
+# 簡要摘要
+uv run fr show 2330 2024 Q1 --format summary
+
+# 自然語言問答
+uv run fr ask "<問題>" --stock <代碼> --year <年> --quarter <季>
+```
+
+### 使用範例
+
+```bash
+# 台積電 2024 Q1，完整執行
+uv run fr run 2330 2024 Q1
+
+# 只重跑 extract 和 insights
+uv run fr run 2330 2024 Q1 --stages extract,insights --force
+
+# 自訂資料庫路徑
+uv run fr run 2330 2024 Q1 --db /data/prod.db --output-dir /data/raw
+
+# 批次處理半導體族群
+uv run fr batch examples/semiconductor_batch.json --concurrency 6
+
+# 查詢問答
+uv run fr ask "本季 EPS 為何大幅成長？" --stock 2330 --year 2024 --quarter Q1
+uv run fr ask "現金流有無異常？" --stock 2454 --year 2024 --quarter Q2
+```
+
+---
+
+## 5. 資料來源說明
+
+### 來源優先順序（Stage 2 財務數字萃取）
+
+```
+XBRL（優先）→ iXBRL（次要）→ FinMind API（回退）
+```
+
+| 來源 | 取得內容 | 信心度 | 備註 |
+|------|----------|--------|------|
+| XBRL | 結構化財務數字（100+ tags） | 1.0 | MOPS 自動化存取受限，可能無法下載 |
+| iXBRL | HTML 嵌入式財務數字 | 0.95 | 同上 |
+| FinMind API | 三表結構化數字 | 0.95 | 免費層無需 token，目前主要使用來源 |
+| PDF 表格解析 | 財務報表頁面數字 | 0.75 | 僅在以上三者均無法使用時啟用 |
+
+### FinMind API 說明
+
+**端點：** `https://api.finmindtrade.com/api/v4/data`
+
+使用的三個 Dataset：
+
+| Dataset | 內容 |
+|---------|------|
+| `TaiwanStockFinancialStatements` | 損益表（營收、毛利、EPS 等） |
+| `TaiwanStockBalanceSheet` | 資產負債表（資產、負債、權益等） |
+| `TaiwanStockCashFlowsStatement` | 現金流量表（OCF、投資、融資、資本支出） |
+
+- 免費層可直接使用，有速率限制
+- 數值單位為完整新台幣（元），系統自動除以 1000 轉換為千元
+- 付費 token 可提高速率上限，設定於 `FINMIND_TOKEN` 環境變數
+
+### 本地 PDF 快取
+
+將 PDF 放入 `data/financial_reports/` 目錄，可省去下載時間：
+
+```
+data/financial_reports/
+├── 202401_2330_AI1.pdf   ← 台積電 2024 Q1
+├── 202402_2330_AI1.pdf   ← 台積電 2024 Q2
+├── 202401_2317_AI1.pdf   ← 鴻海 2024 Q1
+└── ...
+```
+
+**命名規則：** `{期間碼}_{股票代碼}_AI1.pdf`
+
+| 期間碼 | 對應季別 |
+|--------|--------|
+| `{year}01` | Q1（例：202401） |
+| `{year}02` | Q2 |
+| `{year}03` | Q3 |
+| `{year}04` | Q4 |
+
+---
+
+## 6. 資料庫結構
+
+資料存放於 SQLite（預設：`data/financial.db`，WAL 模式支援並發讀寫）。共 17 張資料表：
+
+### 核心資料表
+
+**`financial_facts`** — 所有標準化財務數字
+
+```
+filing_id | field          | value      | unit          | period_type | source_type | confidence
+──────────┼────────────────┼────────────┼───────────────┼─────────────┼─────────────┼───────────
+1         | net_revenue    | 592640.0   | TWD_thousands | duration    | finmind     | 0.95
+1         | gross_profit   | 313840.0   | TWD_thousands | duration    | finmind     | 0.95
+1         | eps_basic      | 8.7        | TWD_per_share | duration    | finmind     | 0.95
+1         | total_assets   | 6071140.0  | TWD_thousands | instant     | finmind     | 0.95
+```
+
+`source_type` 可為：`xbrl` / `ixbrl` / `finmind` / `pdf_table` / `pdf_text` / `computed`  
+`period_type`：`duration`（流量，如營收）/ `instant`（時點，如資產）
+
+**`financial_metrics`** — 計算後的財務比率
+
+```
+filing_id | metric_name    | value  | formula
+──────────┼────────────────┼────────┼─────────────────────────────
+1         | gross_margin   | 0.530  | gross_profit / net_revenue
+1         | net_margin     | 0.428  | net_income / net_revenue
+1         | roe            | 0.185  | net_income / equity
+1         | free_cash_flow | 125000 | operating_cash_flow - |capex|
+```
+
+**`period_comparisons`** — YoY / QoQ 比較
+
+```
+field       | compare_type | current_value | prior_value | change_pct | direction | significance
+────────────┼──────────────┼───────────────┼─────────────┼────────────┼───────────┼─────────────
+net_revenue | yoy          | 592640        | 508630      | +16.52%    | up        | large
+net_income  | yoy          | 253950        | 197350      | +28.68%    | up        | large
+eps_basic   | qoq          | 8.70          | 7.58        | +14.78%    | up        | large
+```
+
+**`detected_events`** — 自動偵測的財務事件
+
+```
+event_type                  | severity | title
+────────────────────────────┼──────────┼────────────────────
+revenue_growth_acceleration | info     | 營收高速成長（YoY +16.5%）
+gross_margin_compression    | warning  | 毛利率下滑（YoY −3.2%）
+```
+
+**`insight_cards`** — Agent 可直接讀取的結構化摘要
+
+```
+card_type           | title             | summary                        | sentiment
+────────────────────┼───────────────────┼────────────────────────────────┼──────────
+performance_summary | 2330 2024Q1 摘要  | 營收 5,926 億，淨利率 42.8%…  | positive
+revenue_growth      | 營收成長分析      | YoY 成長 16.5%，超越市場預期… | positive
+```
+
+### 輔助資料表
+
+| 資料表 | 說明 |
+|--------|------|
+| `companies` | 公司基本資料（代碼、名稱、產業） |
+| `filings` | 季度申報記錄（狀態機、品質分數） |
+| `source_documents` | 下載文件記錄（路徑、大小、checksum） |
+| `fact_evidence` | 財務數字的原始文件佐證 |
+| `document_pages` | PDF 全頁文字內容 |
+| `document_sections` | PDF 章節切分（損益表、資產負債表等） |
+| `document_chunks` | RAG 文字片段（~600 字/片段） |
+| `chunk_embeddings` | 向量嵌入（選用，需 --extra vector） |
+| `validation_results` | 七條驗證規則執行結果 |
+| `text_summaries` | 文字摘要 |
+| `insight_evidence` | 洞察卡片的佐證連結 |
+| `pipeline_runs` | 管道執行日誌（稽核用） |
+
+**Filing 狀態機：**
+
+```
+pending → ingested → extracted → validated → insight_ready
+                                           ↘ failed
+```
+
+完整 Schema DDL 請參閱 [`SPEC.md`](SPEC.md)。
+
+---
+
+## 7. 財務數字標準化
+
+所有來源的財務數字都對應至統一的 canonical 欄位名稱，單位統一為**新台幣千元**（EPS 為每股元）。
+
+### 損益表欄位（period_type = duration）
+
+| canonical 欄位 | 說明 | FinMind type |
+|---------------|------|-------------|
+| `net_revenue` | 營業收入 | Revenue |
+| `gross_profit` | 毛利 | GrossProfit |
+| `operating_income` | 營業利益 | OperatingIncome |
+| `profit_before_tax` | 稅前淨利 | IncomeBeforeTax |
+| `net_income` | 本期淨利 | IncomeAfterTaxes |
+| `net_income_attributable_to_parent` | 歸屬母公司淨利 | EquityAttributableToOwnersOfParent |
+| `eps_basic` | 基本每股盈餘（元/股） | EPS / BasicEPS |
+| `eps_diluted` | 稀釋每股盈餘 | DilutedEPS |
+| `operating_expenses` | 營業費用 | OperatingExpenses |
+| `rd_expenses` | 研發費用 | ResearchAndDevelopmentExpenses |
+| `tax_expense` | 所得稅費用 | TAX |
+| `comprehensive_income` | 本期綜合損益 | TotalConsolidatedProfitForThePeriod |
+
+### 資產負債表欄位（period_type = instant）
+
+| canonical 欄位 | 說明 | FinMind type |
+|---------------|------|-------------|
+| `cash_and_equivalents` | 現金及約當現金 | CashAndCashEquivalents |
+| `accounts_receivable` | 應收帳款 | AccountsReceivable |
+| `inventory` | 存貨 | Inventories |
+| `current_assets` | 流動資產合計 | CurrentAssets |
+| `total_assets` | 資產總計 | Assets |
+| `accounts_payable` | 應付帳款 | AccountsPayable |
+| `current_liabilities` | 流動負債合計 | CurrentLiabilities |
+| `total_liabilities` | 負債總計 | Liabilities |
+| `equity` | 權益總計 | Equity |
+| `retained_earnings` | 保留盈餘 | RetainedEarnings |
+| `share_capital` | 股本 | CommonStocks |
+
+### 現金流量表欄位（period_type = duration）
+
+| canonical 欄位 | 說明 | FinMind type |
+|---------------|------|-------------|
+| `operating_cash_flow` | 營業活動現金流量 | CashProvidedByOperatingActivities |
+| `investing_cash_flow` | 投資活動現金流量 | CashProvidedByInvestingActivities |
+| `financing_cash_flow` | 融資活動現金流量 | CashProvidedByFinancingActivities |
+| `capex` | 資本支出（購置不動產廠房設備） | PropertyAndPlantAndEquipment |
+| `cash_ending` | 期末現金 | CashBalancesEndOfPeriod |
+
+---
+
+## 8. 計算指標與分析
+
+### 財務指標（Stage 4 計算）
+
+| 指標名稱 | 公式 | 單位 |
+|---------|------|------|
+| `gross_margin` | gross_profit / net_revenue | 比率 |
+| `operating_margin` | operating_income / net_revenue | 比率 |
+| `net_margin` | net_income / net_revenue | 比率 |
+| `current_ratio` | current_assets / current_liabilities | 倍 |
+| `debt_to_equity` | total_liabilities / equity | 倍 |
+| `roe` | net_income / equity | 比率 |
+| `roa` | net_income / total_assets | 比率 |
+| `book_value_per_share` | equity / (share_capital / 10) | 元/股 |
+| `free_cash_flow` | operating_cash_flow − \|capex\| | 千元 |
+| `cf_quality` | operating_cash_flow / net_income | 比率 |
+
+### YoY / QoQ 比較
+
+- 系統自動從資料庫取得去年同期（YoY）與上一季（QoQ）資料
+- 對每個共同欄位計算：絕對變化量、百分比變化、方向
+- **顯著性分級：**
+  - `large`：|變化%| ≥ 10%
+  - `moderate`：3% ≤ |變化%| < 10%
+  - `small`：|變化%| < 3%
+
+### 自動偵測事件
+
+| 事件類型 | 觸發條件 | 嚴重度 |
+|---------|----------|--------|
+| revenue_growth_acceleration | YoY 營收 > +30% | info |
+| revenue_decline | YoY 營收 < −10% | warning |
+| gross_margin_compression | YoY 毛利率 < −3% | warning |
+| fcf_negative | 自由現金流 < 0 | warning |
+| inventory_buildup | QoQ 存貨 > +20% 且 QoQ 營收 < +5% | info |
+| cash_flow_quality_warning | OCF / 淨利 < 0.7 | warning |
+
+---
+
+## 9. 驗證規則
+
+Stage 3 對每筆 filing 執行七條財務邏輯檢查：
+
+| 規則名稱 | 檢查條件 | 嚴重度 | 說明 |
+|---------|----------|--------|------|
+| `balance_sheet_equation` | \|資產 − (負債 + 權益)\| / 資產 < 1% | error | 資產負債表平衡 |
+| `gross_profit_lte_revenue` | 毛利 ≤ 營收 | error | 毛利不可超過營收 |
+| `income_consistency` | 營業利益 ≤ 毛利 | error | 利益層層遞減邏輯 |
+| `eps_consistency` | sign(EPS) = sign(淨利) | error | EPS 與淨利符號一致 |
+| `current_ratio_positive` | 流動資產 / 流動負債 > 0 | warning | 流動比率須正值 |
+| `cf_quality` | 營業現金流 / 淨利 ≥ 0.7 | warning | 淨利有足夠現金支撐 |
+| `revenue_positive` | 營收 > 0 | info | 基本正常營業確認 |
+
+---
+
+## 10. 專案結構
+
+```
+FinancialReports/
+├── src/
+│   ├── cli.py                        # CLI 入口（fr 指令，typer）
+│   │
+│   ├── domain/
+│   │   ├── identity.py               # FilingIdentity dataclass（stock_code, year, quarter）
+│   │   ├── models.py                 # Pydantic v2 models（Filing, Fact, Chunk, InsightCard…）
+│   │   └── taxonomy.py               # XBRL_TO_CANONICAL、KNOWN_XBRL_TAGS（100+ tags）
+│   │
+│   ├── sources/
+│   │   ├── registry.py               # Client 工廠函數（singleton pattern）
+│   │   ├── mops_client.py            # MOPS API：公司基本資料查詢
+│   │   ├── xbrl_client.py            # XBRL / iXBRL 文件下載
+│   │   ├── pdf_client.py             # TWSE PDF 下載（含本地快取檢查）
+│   │   └── finmind_client.py         # FinMind API：三表非同步並行查詢
+│   │
+│   ├── parsers/
+│   │   ├── xbrl_parser.py            # XBRL XML 解析（lxml），建立 context map
+│   │   ├── ixbrl_parser.py           # iXBRL HTML 解析，萃取 ix:nonFraction
+│   │   ├── pdf_text_parser.py        # PDF 全頁文字萃取（pdfplumber）
+│   │   ├── pdf_table_parser.py       # PDF 表格解析（word-position 座標法）
+│   │   └── pdf_section_parser.py     # 財務章節偵測 + RAG chunk 切割
+│   │
+│   ├── normalize/
+│   │   ├── fact_mapper.py            # XBRL tag → canonical field，重複項目去除
+│   │   ├── period_normalizer.py      # 民國/西元日期轉換，quarter_to_dates()
+│   │   ├── unit_normalizer.py        # 單位統一（→ TWD_thousands / TWD_per_share）
+│   │   └── company_mapper.py         # 股票代碼 → 公司名稱、產業解析
+│   │
+│   ├── storage/
+│   │   ├── schema.sql                # 17 張表完整 DDL（含 PRAGMA 設定）
+│   │   ├── sqlite_store.py           # SQLAlchemy Core wrapper（upsert、bulk save）
+│   │   ├── json_exporter.py          # 匯出 filing 資料為 JSON
+│   │   └── vector_store.py           # 向量儲存介面（ChromaDB，佔位）
+│   │
+│   ├── analytics/
+│   │   ├── metrics.py                # 財務指標計算（純函數）
+│   │   ├── comparisons.py            # YoY / QoQ 比較、顯著性分級
+│   │   ├── event_detector.py         # 規則引擎：偵測財務異常事件
+│   │   └── insight_builder.py        # 10 種洞察卡片建立
+│   │
+│   ├── validation/
+│   │   ├── rules.py                  # 七條財務邏輯驗證規則
+│   │   ├── reconciler.py             # 多來源交叉比對（XBRL vs PDF vs FinMind）
+│   │   └── quality_score.py          # 四維品質分數計算
+│   │
+│   ├── agent/
+│   │   ├── query_service.py          # 高層查詢 API（facts / insights / text）
+│   │   ├── retriever.py              # 關鍵字檢索（FactRetriever、ChunkRetriever）
+│   │   └── context_builder.py        # LLM context pack 組裝（送給 OpenAI 前）
+│   │
+│   └── pipeline/
+│       ├── run.py                    # 管道協調器（串接四階段）
+│       ├── ingest.py                 # Stage 1：下載
+│       ├── extract.py                # Stage 2：萃取
+│       ├── validate.py               # Stage 3：驗證
+│       └── build_insights.py         # Stage 4：洞察
+│
+├── tests/                            # pytest 測試套件
+├── examples/
+│   ├── test_20.json                  # 20 筆批次測試（10 家公司 × 多季）
+│   ├── batch_query.json              # 查詢批次設定
+│   └── semiconductor_batch.json      # 半導體族群批次設定
+├── data/
+│   ├── financial.db                  # SQLite 資料庫（預設路徑）
+│   ├── raw/                          # 下載的 XBRL / iXBRL 暫存
+│   └── financial_reports/            # PDF 本地快取
+├── config/
+│   ├── crawler_config.json           # 爬蟲設定（timeout、重試次數等）
+│   └── xbrl_tags.json                # XBRL tag 對應表
+├── SPEC.md                           # 完整技術規格文件
+├── pyproject.toml                    # 專案設定與依賴
+├── uv.lock                           # 鎖定依賴版本
+└── .env                              # 環境變數（OPENAI_API_KEY 等）
+```
+
+---
+
+## 11. 開發指南
+
+### 執行測試
+
+```bash
+uv run pytest                              # 全部測試
+uv run pytest tests/test_parsers.py -v    # 指定測試檔案
+uv run pytest --cov=src/ --cov-report=html # 覆蓋率報告
+```
+
+### 程式碼品質
+
+```bash
+uv run ruff check src/ tests/    # Lint 檢查
+uv run ruff format src/ tests/   # 自動格式化
+uv run mypy src/ --strict        # 型別檢查
+```
+
+### 核心依賴
+
+| 套件 | 用途 |
+|------|------|
+| `httpx` | 非同步 HTTP 客戶端（FinMind / MOPS / TWSE） |
+| `lxml` | XML / HTML 解析（XBRL / iXBRL） |
+| `pydantic` v2 | 資料模型驗證 |
+| `sqlalchemy` | 資料庫操作（Core，非 ORM） |
+| `typer` + `rich` | CLI 框架與終端機美化 |
+| `pdfplumber` | PDF 文字與座標萃取（--extra pdf） |
+| `openai` | LLM 問答（--extra llm） |
+
+完整依賴清單請參閱 `pyproject.toml`。
+
+---
+
+## 參考
+
+- [完整技術規格（SPEC.md）](SPEC.md) — Input/Output 規格、DB Schema、所有規則細節
+- [FinMind API 文件](https://finmindtrade.com/) — 財務數據 API 說明
+- [uv 文件](https://docs.astral.sh/uv/) — 套件管理工具
