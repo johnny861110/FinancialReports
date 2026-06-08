@@ -30,7 +30,10 @@ _FINMIND_TO_CANONICAL: dict[str, str] = {
     "GrossProfit": "gross_profit",
     "OperatingIncome": "operating_income",
     "IncomeBeforeTax": "profit_before_tax",
+    "PreTaxIncome": "profit_before_tax",
     "IncomeAfterTaxes": "net_income",
+    "IncomeAfterTax": "net_income",          # bank variant
+    "IncomeFromContinuingOperations": "net_income",  # bank variant
     "EquityAttributableToOwnersOfParent": "net_income_attributable_to_parent",
     "EPS": "eps_basic",
     "BasicEPS": "eps_basic",
@@ -39,23 +42,33 @@ _FINMIND_TO_CANONICAL: dict[str, str] = {
     "ResearchAndDevelopmentExpenses": "rd_expenses",
     "TAX": "tax_expense",
     "TotalConsolidatedProfitForThePeriod": "comprehensive_income",
+    # Bank-specific income fields
+    "NetInterestIncome": "net_interest_income",
+    "NetNonInterestIncome": "net_non_interest_income",
+    "BadDebts": "loan_loss_provisions",
     # Balance sheet
     "CashAndCashEquivalents": "cash_and_equivalents",
-    "AccountsReceivable": "accounts_receivable",
+    "AccountsReceivableNet": "accounts_receivable",  # FinMind actual key
+    "AccountsReceivable": "accounts_receivable",     # fallback
     "Inventories": "inventory",
     "CurrentAssets": "current_assets",
-    "Assets": "total_assets",
+    "TotalAssets": "total_assets",           # FinMind actual key
+    "Assets": "total_assets",               # fallback
     "AccountsPayable": "accounts_payable",
     "CurrentLiabilities": "current_liabilities",
     "Liabilities": "total_liabilities",
     "Equity": "equity",
     "EquityAttributableToOwnersOfParentCompany": "equity_attributable_to_parent",
     "RetainedEarnings": "retained_earnings",
-    "CommonStocks": "share_capital",
+    "CapitalStock": "share_capital",         # FinMind actual key
+    "OrdinaryShare": "share_capital",        # FinMind alternate key
+    "CommonStocks": "share_capital",         # fallback
     # Cash flow
-    "CashProvidedByOperatingActivities": "operating_cash_flow",
+    "CashFlowsFromOperatingActivities": "operating_cash_flow",    # FinMind actual key
+    "NetCashInflowFromOperatingActivities": "operating_cash_flow", # alias
     "CashProvidedByInvestingActivities": "investing_cash_flow",
-    "CashProvidedByFinancingActivities": "financing_cash_flow",
+    "CashFlowsProvidedFromFinancingActivities": "financing_cash_flow",  # FinMind actual key
+    "CashProvidedByFinancingActivities": "financing_cash_flow",         # fallback
     "PropertyAndPlantAndEquipment": "capex",
     "CashBalancesBeginningOfPeriod": "cash_beginning",
     "CashBalancesEndOfPeriod": "cash_ending",

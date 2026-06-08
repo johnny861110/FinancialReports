@@ -41,6 +41,8 @@ XBRL / iXBRL / PDF / FinMind API
 10. [專案結構](#10-專案結構)
 11. [開發指南](#11-開發指南)
 
+完整版本變更記錄請見 [CHANGELOG.md](CHANGELOG.md)。
+
 ---
 
 ## 1. 系統需求與安裝
@@ -194,7 +196,7 @@ uv run fr extract 2330 2024 Q1
 
 **輸出範例：**
 ```
-2330_2024Q1: facts=21, chunks=2681, status=completed
+2330_2024Q1: facts=27, chunks=2681, status=completed
 ```
 
 ### Stage 3 — Validate（驗證）
@@ -218,13 +220,15 @@ uv run fr validate 2330 2024 Q1
 **品質分數（0.0–1.0）：**
 
 ```
-quality_score = 0.40 × XBRL 覆蓋率
-              + 0.30 × 關鍵欄位完整度（9 項）
+quality_score = 0.40 × 資料來源覆蓋率（XBRL / iXBRL / FinMind 均計入）
+              + 0.30 × 關鍵欄位完整度
               + 0.20 × 驗證通過率
               + 0.10 × 佐證覆蓋率
 ```
 
-九項關鍵欄位：net_revenue、gross_profit、operating_income、net_income、eps_basic、total_assets、total_liabilities、equity、operating_cash_flow
+**一般股關鍵欄位（9 項）：** net_revenue、gross_profit、operating_income、net_income、eps_basic、total_assets、total_liabilities、equity、operating_cash_flow
+
+**金融股關鍵欄位（8 項）：** net_revenue、net_interest_income、net_income、eps_basic、total_assets、total_liabilities、equity、operating_cash_flow（無毛利 / 流動比率要求）
 
 完成後 status 更新為 `validated`。
 
@@ -501,8 +505,8 @@ pending → ingested → extracted → validated → insight_ready
 | `net_revenue` | 營業收入 | Revenue |
 | `gross_profit` | 毛利 | GrossProfit |
 | `operating_income` | 營業利益 | OperatingIncome |
-| `profit_before_tax` | 稅前淨利 | IncomeBeforeTax |
-| `net_income` | 本期淨利 | IncomeAfterTaxes |
+| `profit_before_tax` | 稅前淨利 | IncomeBeforeTax / PreTaxIncome |
+| `net_income` | 本期淨利 | IncomeAfterTaxes / IncomeAfterTax |
 | `net_income_attributable_to_parent` | 歸屬母公司淨利 | EquityAttributableToOwnersOfParent |
 | `eps_basic` | 基本每股盈餘（元/股） | EPS / BasicEPS |
 | `eps_diluted` | 稀釋每股盈餘 | DilutedEPS |
@@ -511,29 +515,37 @@ pending → ingested → extracted → validated → insight_ready
 | `tax_expense` | 所得稅費用 | TAX |
 | `comprehensive_income` | 本期綜合損益 | TotalConsolidatedProfitForThePeriod |
 
+**銀行業專用欄位（金融股適用）：**
+
+| canonical 欄位 | 說明 | FinMind type |
+|---------------|------|-------------|
+| `net_interest_income` | 淨利息收入 | NetInterestIncome |
+| `net_non_interest_income` | 淨非利息收入 | NetNonInterestIncome |
+| `loan_loss_provisions` | 呆帳費用 / 信用損失準備 | BadDebts |
+
 ### 資產負債表欄位（period_type = instant）
 
 | canonical 欄位 | 說明 | FinMind type |
 |---------------|------|-------------|
 | `cash_and_equivalents` | 現金及約當現金 | CashAndCashEquivalents |
-| `accounts_receivable` | 應收帳款 | AccountsReceivable |
+| `accounts_receivable` | 應收帳款 | AccountsReceivableNet |
 | `inventory` | 存貨 | Inventories |
 | `current_assets` | 流動資產合計 | CurrentAssets |
-| `total_assets` | 資產總計 | Assets |
+| `total_assets` | 資產總計 | TotalAssets |
 | `accounts_payable` | 應付帳款 | AccountsPayable |
 | `current_liabilities` | 流動負債合計 | CurrentLiabilities |
 | `total_liabilities` | 負債總計 | Liabilities |
 | `equity` | 權益總計 | Equity |
 | `retained_earnings` | 保留盈餘 | RetainedEarnings |
-| `share_capital` | 股本 | CommonStocks |
+| `share_capital` | 股本 | CapitalStock / OrdinaryShare |
 
 ### 現金流量表欄位（period_type = duration）
 
 | canonical 欄位 | 說明 | FinMind type |
 |---------------|------|-------------|
-| `operating_cash_flow` | 營業活動現金流量 | CashProvidedByOperatingActivities |
+| `operating_cash_flow` | 營業活動現金流量 | CashFlowsFromOperatingActivities |
 | `investing_cash_flow` | 投資活動現金流量 | CashProvidedByInvestingActivities |
-| `financing_cash_flow` | 融資活動現金流量 | CashProvidedByFinancingActivities |
+| `financing_cash_flow` | 融資活動現金流量 | CashFlowsProvidedFromFinancingActivities |
 | `capex` | 資本支出（購置不動產廠房設備） | PropertyAndPlantAndEquipment |
 | `cash_ending` | 期末現金 | CashBalancesEndOfPeriod |
 

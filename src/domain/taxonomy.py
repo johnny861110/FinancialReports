@@ -64,6 +64,22 @@ CANONICAL_INCOME: dict[str, dict] = {
         "xbrl_tags": ["ComprehensiveIncome"],
         "zh": "綜合損益總額",
     },
+    # Bank-specific income fields
+    "net_interest_income": {
+        "unit": "TWD_thousands",
+        "xbrl_tags": [],
+        "zh": "淨利息收入",
+    },
+    "net_non_interest_income": {
+        "unit": "TWD_thousands",
+        "xbrl_tags": [],
+        "zh": "淨非利息收入",
+    },
+    "loan_loss_provisions": {
+        "unit": "TWD_thousands",
+        "xbrl_tags": [],
+        "zh": "呆帳費用",
+    },
 }
 
 CANONICAL_BALANCE: dict[str, dict] = {
