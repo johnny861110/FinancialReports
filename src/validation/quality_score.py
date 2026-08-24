@@ -43,7 +43,7 @@ _KEY_FIELDS_BANK = [
 _BANK_STOCK_PREFIX = ("28",)
 
 # Weight breakdown (must sum to 1.0)
-_WEIGHT_SOURCE_COVERAGE = 0.40   # formerly XBRL-only; now counts any structured source
+_WEIGHT_SOURCE_COVERAGE = 0.40  # formerly XBRL-only; now counts any structured source
 _WEIGHT_COMPLETENESS = 0.30
 _WEIGHT_VALIDATION_PASS = 0.20
 _WEIGHT_EVIDENCE = 0.10

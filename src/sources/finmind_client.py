@@ -12,8 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date
-from pathlib import Path
 
 import httpx
 
@@ -32,7 +30,7 @@ _FINMIND_TO_CANONICAL: dict[str, str] = {
     "IncomeBeforeTax": "profit_before_tax",
     "PreTaxIncome": "profit_before_tax",
     "IncomeAfterTaxes": "net_income",
-    "IncomeAfterTax": "net_income",          # bank variant
+    "IncomeAfterTax": "net_income",  # bank variant
     "IncomeFromContinuingOperations": "net_income",  # bank variant
     "EquityAttributableToOwnersOfParent": "net_income_attributable_to_parent",
     "EPS": "eps_basic",
@@ -49,26 +47,26 @@ _FINMIND_TO_CANONICAL: dict[str, str] = {
     # Balance sheet
     "CashAndCashEquivalents": "cash_and_equivalents",
     "AccountsReceivableNet": "accounts_receivable",  # FinMind actual key
-    "AccountsReceivable": "accounts_receivable",     # fallback
+    "AccountsReceivable": "accounts_receivable",  # fallback
     "Inventories": "inventory",
     "CurrentAssets": "current_assets",
-    "TotalAssets": "total_assets",           # FinMind actual key
-    "Assets": "total_assets",               # fallback
+    "TotalAssets": "total_assets",  # FinMind actual key
+    "Assets": "total_assets",  # fallback
     "AccountsPayable": "accounts_payable",
     "CurrentLiabilities": "current_liabilities",
     "Liabilities": "total_liabilities",
     "Equity": "equity",
     "EquityAttributableToOwnersOfParentCompany": "equity_attributable_to_parent",
     "RetainedEarnings": "retained_earnings",
-    "CapitalStock": "share_capital",         # FinMind actual key
-    "OrdinaryShare": "share_capital",        # FinMind alternate key
-    "CommonStocks": "share_capital",         # fallback
+    "CapitalStock": "share_capital",  # FinMind actual key
+    "OrdinaryShare": "share_capital",  # FinMind alternate key
+    "CommonStocks": "share_capital",  # fallback
     # Cash flow
-    "CashFlowsFromOperatingActivities": "operating_cash_flow",    # FinMind actual key
-    "NetCashInflowFromOperatingActivities": "operating_cash_flow", # alias
+    "CashFlowsFromOperatingActivities": "operating_cash_flow",  # FinMind actual key
+    "NetCashInflowFromOperatingActivities": "operating_cash_flow",  # alias
     "CashProvidedByInvestingActivities": "investing_cash_flow",
     "CashFlowsProvidedFromFinancingActivities": "financing_cash_flow",  # FinMind actual key
-    "CashProvidedByFinancingActivities": "financing_cash_flow",         # fallback
+    "CashProvidedByFinancingActivities": "financing_cash_flow",  # fallback
     "PropertyAndPlantAndEquipment": "capex",
     "CashBalancesBeginningOfPeriod": "cash_beginning",
     "CashBalancesEndOfPeriod": "cash_ending",
@@ -76,10 +74,18 @@ _FINMIND_TO_CANONICAL: dict[str, str] = {
 
 # Fields that are point-in-time (balance sheet) rather than period
 _INSTANT_FIELDS = {
-    "cash_and_equivalents", "accounts_receivable", "inventory",
-    "current_assets", "total_assets", "accounts_payable",
-    "current_liabilities", "total_liabilities", "equity",
-    "equity_attributable_to_parent", "retained_earnings", "share_capital",
+    "cash_and_equivalents",
+    "accounts_receivable",
+    "inventory",
+    "current_assets",
+    "total_assets",
+    "accounts_payable",
+    "current_liabilities",
+    "total_liabilities",
+    "equity",
+    "equity_attributable_to_parent",
+    "retained_earnings",
+    "share_capital",
     "cash_ending",
 }
 
@@ -87,9 +93,18 @@ _INSTANT_FIELDS = {
 def _period_end_date(identity: FilingIdentity) -> str:
     """Return the last day of the quarter as YYYY-MM-DD."""
     quarter_end = {
-        1: "03-31", 2: "06-30", 3: "09-30", 4: "12-31",
-        "Q1": "03-31", "Q2": "06-30", "Q3": "09-30", "Q4": "12-31",
-        "1": "03-31", "2": "06-30", "3": "09-30", "4": "12-31",
+        1: "03-31",
+        2: "06-30",
+        3: "09-30",
+        4: "12-31",
+        "Q1": "03-31",
+        "Q2": "06-30",
+        "Q3": "09-30",
+        "Q4": "12-31",
+        "1": "03-31",
+        "2": "06-30",
+        "3": "09-30",
+        "4": "12-31",
     }
     return f"{identity.year}-{quarter_end[identity.quarter]}"
 
@@ -145,9 +160,7 @@ class FinMindClient:
                 continue
             facts.extend(self._records_to_facts(result, period_end))
 
-        logger.info(
-            "FinMind fetched %d facts for %s", len(facts), identity.filing_key
-        )
+        logger.info("FinMind fetched %d facts for %s", len(facts), identity.filing_key)
         return facts
 
     async def _fetch_dataset(
@@ -175,10 +188,10 @@ class FinMindClient:
                 if body.get("status") != 200:
                     raise ValueError(f"FinMind API error: {body.get('msg')}")
                 return body.get("data", [])
-            except Exception as exc:
+            except Exception:
                 if attempt == 3:
                     raise
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
         return []
 
     def _records_to_facts(self, records: list[dict], period_end: str) -> list[dict]:
@@ -209,14 +222,16 @@ class FinMindClient:
             if unit == "TWD_thousands" and abs(value) >= 1000:
                 value = value / 1000.0
 
-            facts.append({
-                "field": canonical,
-                "value": value,
-                "unit": unit,
-                "period_type": period_type,
-                "confidence": 0.95,
-                "xbrl_tag": fm_type,
-            })
+            facts.append(
+                {
+                    "field": canonical,
+                    "value": value,
+                    "unit": unit,
+                    "period_type": period_type,
+                    "confidence": 0.95,
+                    "xbrl_tag": fm_type,
+                }
+            )
         return facts
 
     def fetch_facts(self, identity: FilingIdentity) -> list[dict]:

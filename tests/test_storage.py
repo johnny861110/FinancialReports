@@ -1,6 +1,5 @@
 """Tests for SQLite storage layer."""
 
-
 import pytest
 
 from src.domain.identity import FilingIdentity

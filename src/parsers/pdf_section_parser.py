@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from src.parsers.pdf_text_parser import PageText
 
+
 def _stmt_pattern(title: str) -> str:
     """
     Build a regex that matches a financial-statement title header.
