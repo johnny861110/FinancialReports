@@ -1,0 +1,299 @@
+"""Contract assembly and semantic mapping for API v1."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any, Literal
+
+from src.api.contracts import (
+    Comparison,
+    ContextEnvelope,
+    DataState,
+    Event,
+    Evidence,
+    Fact,
+    FieldAvailability,
+    FilingEnvelope,
+    FilingStatus,
+    Freshness,
+    Identity,
+    InsightCard,
+    Metric,
+    PeriodType,
+    PipelineRun,
+    Quality,
+    ReadinessStatus,
+    SnapshotValues,
+    SourceDocument,
+    SourceType,
+    ValidationFailure,
+    ValidationResult,
+)
+from src.domain.taxonomy import ALL_CANONICAL, FIELD_TO_STATEMENT
+
+STRUCTURED_SOURCES = {"xbrl", "ixbrl", "finmind"}
+SOURCE_PRIORITY = {
+    "xbrl": 0,
+    "ixbrl": 1,
+    "finmind": 2,
+    "pdf_table": 3,
+    "pdf_text": 4,
+    "computed": 5,
+}
+METRIC_UNITS = {
+    "gross_margin": "ratio",
+    "operating_margin": "ratio",
+    "net_margin": "ratio",
+    "roe": "ratio",
+    "roa": "ratio",
+    "rd_intensity": "ratio",
+    "current_ratio": "ratio",
+    "debt_to_equity": "ratio",
+    "cf_quality": "ratio",
+    "book_value_per_share": "TWD_per_share",
+    "free_cash_flow": "TWD_thousands",
+}
+SNAPSHOT_FIELDS = {
+    "net_revenue",
+    "gross_profit",
+    "operating_income",
+    "net_income",
+    "eps_basic",
+    "total_assets",
+    "total_liabilities",
+    "equity",
+    "operating_cash_flow",
+    "free_cash_flow",
+    "net_interest_income",
+    "net_non_interest_income",
+    "loan_loss_provisions",
+}
+BANK_NOT_APPLICABLE = {"gross_profit", "current_assets", "current_liabilities", "inventory"}
+BANK_ONLY = {"net_interest_income", "net_non_interest_income", "loan_loss_provisions"}
+
+
+class APIProblem(Exception):
+    def __init__(
+        self,
+        status_code: int,
+        code: str,
+        message: str,
+        data_state: DataState,
+        *,
+        retryable: bool = False,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.message = message
+        self.data_state = data_state
+        self.retryable = retryable
+        self.details = details or {}
+
+
+def parse_period(period: str) -> tuple[int, str]:
+    if len(period) != 6 or period[4] != "Q" or not period[:4].isdigit() or period[5] not in "1234":
+        raise APIProblem(422, "invalid_period", "period must use YYYYQn", DataState.MISSING)
+    year = int(period[:4])
+    if year < 1990 or year > datetime.now().year + 1:
+        raise APIProblem(
+            422, "invalid_period", "period year is outside supported bounds", DataState.MISSING
+        )
+    return year, period[4:]
+
+
+def ensure_fields(fields: list[str] | None) -> list[str] | None:
+    if fields is None:
+        return None
+    unknown = sorted(set(fields) - set(ALL_CANONICAL))
+    if unknown:
+        raise APIProblem(
+            422,
+            "unknown_fields",
+            "one or more canonical fields are unknown",
+            DataState.MISSING,
+            details={"fields": unknown},
+        )
+    return list(dict.fromkeys(fields))
+
+
+def build_envelope(
+    bundle: dict[str, Any],
+    fields: list[str] | None = None,
+    chunks: list[dict[str, Any]] | None = None,
+) -> FilingEnvelope | ContextEnvelope:
+    filing = bundle["filing"]
+    pipeline_status = FilingStatus(filing["status"])
+    latest_failed = any(item["status"] == "failed" for item in bundle["pipeline_state"][-4:])
+    if pipeline_status is FilingStatus.FAILED or latest_failed:
+        raise APIProblem(
+            503,
+            "provider_failure",
+            "the latest provider or pipeline operation failed",
+            DataState.PROVIDER_FAILURE,
+            retryable=True,
+            details={"pipeline_status": pipeline_status.value},
+        )
+    if pipeline_status not in {FilingStatus.VALIDATED, FilingStatus.INSIGHT_READY}:
+        raise APIProblem(
+            409,
+            "filing_not_ready",
+            "filing exists but is not ready for snapshot consumption",
+            DataState.MISSING,
+            retryable=True,
+            details={"pipeline_status": pipeline_status.value},
+        )
+
+    selected = set(fields) if fields else set(ALL_CANONICAL)
+    raw_facts = [item for item in bundle["facts"] if item["field"] in selected]
+    facts = [
+        Fact(
+            **{
+                **item,
+                "statement": FIELD_TO_STATEMENT.get(item["field"], "unknown"),
+                "period_type": PeriodType(item["period_type"]),
+                "source_type": SourceType(item["source_type"]),
+                "evidence": [Evidence(**evidence) for evidence in item["evidence"]],
+            }
+        )
+        for item in raw_facts
+    ]
+    preferred: dict[str, Fact] = {}
+    for fact in facts:
+        current = preferred.get(fact.field)
+        if (
+            current is None
+            or SOURCE_PRIORITY[fact.source_type.value] < SOURCE_PRIORITY[current.source_type.value]
+        ):
+            preferred[fact.field] = fact
+
+    snapshot_data = {
+        name: preferred[name].value if name in preferred else None for name in SNAPSHOT_FIELDS
+    }
+    snapshot_data["eps"] = snapshot_data["eps_basic"]
+    metrics = [
+        Metric(
+            name=item["name"],
+            value=item["value"],
+            unit=METRIC_UNITS.get(item["name"], "unknown"),
+            formula=item["formula"],
+            inputs=item["inputs"],
+            confidence=item["confidence"],
+        )
+        for item in bundle["metrics"]
+    ]
+    metric_map = {item.name: item.value for item in metrics}
+    if snapshot_data["free_cash_flow"] is None and "free_cash_flow" in metric_map:
+        snapshot_data["free_cash_flow"] = metric_map["free_cash_flow"]
+
+    updated_at = _as_datetime(filing["updated_at"])
+    latest_source = max(
+        (
+            _as_datetime(item["downloaded_at"])
+            for item in bundle["source_documents"]
+            if item["downloaded_at"]
+        ),
+        default=None,
+    )
+    age = (datetime.now(timezone.utc) - _aware(updated_at)).total_seconds()
+    freshness_state: Literal["stale", "current"] = "stale" if age > 86400 else "current"
+    freshness = Freshness(
+        state=freshness_state,
+        updated_at=updated_at,
+        is_stale=freshness_state == "stale",
+        latest_source_at=latest_source,
+    )
+    readiness = ReadinessStatus.STALE if freshness_state == "stale" else ReadinessStatus.READY
+
+    validation = [
+        ValidationResult(**{**item, "passed": bool(item["passed"])})
+        for item in bundle["validation"]
+    ]
+    structured = {fact.field for fact in facts if fact.source_type.value in STRUCTURED_SOURCES}
+    quality_score = filing["quality_score"]
+    is_bank = filing["stock_code"].startswith("28")
+    not_applicable = BANK_NOT_APPLICABLE if is_bank else BANK_ONLY
+    missing_fields = sorted(
+        name for name in selected if name not in preferred and name not in not_applicable
+    )
+    validation_failures = [
+        ValidationFailure(
+            rule_name=item.rule_name,
+            severity=item.severity,
+            message=item.message,
+            checked_at=item.checked_at,
+        )
+        for item in validation
+        if not item.passed
+    ]
+    quality = Quality(
+        score=quality_score,
+        state=DataState.NULL if quality_score is None else DataState.PRESENT,
+        missing_fields=missing_fields,
+        validation_failures=validation_failures,
+        validation_total=len(validation),
+        validation_failed=sum(not item.passed for item in validation),
+        structured_source_coverage=len(structured) / len(ALL_CANONICAL),
+    )
+
+    failed_state = DataState.PROVIDER_FAILURE if latest_failed else DataState.MISSING
+    availability = []
+    for name in sorted(selected):
+        state = DataState.PRESENT if name in preferred else failed_state
+        reason = None
+        if (is_bank and name in BANK_NOT_APPLICABLE) or (not is_bank and name in BANK_ONLY):
+            state = DataState.NOT_APPLICABLE
+            reason = "field is not applicable to this company sector"
+        elif state is DataState.MISSING:
+            reason = "expected field was not supplied by available sources"
+        availability.append(
+            FieldAvailability(
+                field=name,
+                statement=FIELD_TO_STATEMENT[name],
+                unit=ALL_CANONICAL[name]["unit"],
+                state=state,
+                reason=reason,
+            )
+        )
+
+    identity = Identity(
+        stock_code=filing["stock_code"],
+        period=f"{filing['year']}{filing['quarter']}",
+        filing_key=filing["filing_key"],
+        company_name=filing["name_zh"] or filing["name_en"] or filing["stock_code"],
+        company_name_zh=filing["name_zh"],
+        company_name_en=filing["name_en"],
+        industry=filing["industry"],
+        market=filing["market"],
+    )
+    base: dict[str, Any] = {
+        "identity": identity,
+        "status": readiness,
+        "pipeline_status": pipeline_status,
+        "freshness": freshness,
+        "quality": quality,
+        "snapshot": SnapshotValues(**snapshot_data),
+        "metrics": metric_map,
+        "metric_records": metrics,
+        "events": [Event(**{**item, "title": item["title"] or None}) for item in bundle["events"]],
+        "evidence": [Evidence(**item) for item in bundle["evidence"]],
+        "facts": facts,
+        "field_availability": availability,
+        "validation": validation,
+        "comparisons": [Comparison(**item) for item in bundle["comparisons"]],
+        "insight_cards": [InsightCard(**item) for item in bundle["insight_cards"]],
+        "source_documents": [SourceDocument(**item) for item in bundle["source_documents"]],
+        "pipeline_state": [PipelineRun(**item) for item in bundle["pipeline_state"]],
+    }
+    if chunks is not None:
+        return ContextEnvelope(**base, evidence_chunks=chunks)
+    return FilingEnvelope(**base)
+
+
+def _as_datetime(value: str | datetime) -> datetime:
+    return value if isinstance(value, datetime) else datetime.fromisoformat(value)
+
+
+def _aware(value: datetime) -> datetime:
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
