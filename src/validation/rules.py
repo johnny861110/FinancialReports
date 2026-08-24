@@ -5,6 +5,7 @@ Financial data validation rules.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -126,7 +127,9 @@ def check_cash_flow_signs(facts: dict[str, float]) -> tuple[bool, str]:
 
 
 # Registry of all rules with metadata
-ALL_RULES: list[tuple[ValidationRule, callable]] = [
+RuleCheck = Callable[[dict[str, float]], tuple[bool, str]]
+
+ALL_RULES: list[tuple[ValidationRule, RuleCheck]] = [
     (
         ValidationRule("balance_sheet_equation", "Assets = Liabilities + Equity", "error"),
         check_balance_sheet_equation,

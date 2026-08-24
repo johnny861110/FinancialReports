@@ -8,8 +8,8 @@ from __future__ import annotations
 import logging
 from datetime import date
 
-import requests
-from bs4 import BeautifulSoup
+import requests  # type: ignore[import-untyped]
+from bs4 import BeautifulSoup, Tag
 
 from src.domain.identity import FilingIdentity
 
@@ -81,9 +81,15 @@ class MOPSClient:
             tables = soup.find_all("table")
             info: dict = {}
             for table in tables:
+                if not isinstance(table, Tag):
+                    continue
                 rows = table.find_all("tr")
                 for row in rows:
-                    cells = [td.get_text(strip=True) for td in row.find_all("td")]
+                    if not isinstance(row, Tag):
+                        continue
+                    cells = [
+                        td.get_text(strip=True) for td in row.find_all("td") if isinstance(td, Tag)
+                    ]
                     if len(cells) >= 2:
                         key, val = cells[0], cells[1]
                         if "公司名稱" in key or "名稱" in key:

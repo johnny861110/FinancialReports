@@ -135,9 +135,10 @@ class FinMindClient:
         # Start of year for the annual range query
         start_date = f"{identity.year}-01-01"
 
-        own_client = client is None
-        if own_client:
-            client = httpx.AsyncClient(
+        active_client = client
+        own_client = active_client is None
+        if active_client is None:
+            active_client = httpx.AsyncClient(
                 timeout=self.timeout,
                 follow_redirects=True,
                 verify=False,  # WSL SSL chain issue
@@ -145,17 +146,17 @@ class FinMindClient:
             )
         try:
             tasks = [
-                self._fetch_dataset(ds, identity.stock_code, start_date, period_end, client)
+                self._fetch_dataset(ds, identity.stock_code, start_date, period_end, active_client)
                 for ds in self._DATASETS
             ]
             results = await asyncio.gather(*tasks, return_exceptions=True)
         finally:
             if own_client:
-                await client.aclose()
+                await active_client.aclose()
 
         facts: list[dict] = []
         for ds, result in zip(self._DATASETS, results):
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 logger.warning("FinMind %s failed for %s: %s", ds, identity.filing_key, result)
                 continue
             facts.extend(self._records_to_facts(result, period_end))
