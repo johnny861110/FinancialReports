@@ -43,6 +43,9 @@ XBRL / iXBRL / PDF / FinMind API
 
 完整版本變更記錄請見 [CHANGELOG.md](CHANGELOG.md)。
 
+供跨 repository typed consumer 使用的 versioned HTTP contract、啟動方式與
+absence/unit 語意請見 [FinancialReports API v1](docs/API_V1.md)。
+
 ---
 
 ## 1. 系統需求與安裝

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal
 
 import pytest
@@ -209,6 +211,39 @@ def test_error_mapping_filters_pagination_and_batch_bounds(api_client) -> None:
     assert api_client.post("/v1/batch/filings/query", json=oversized).status_code == 422
 
 
+def test_batch_returns_per_item_data_and_missing_error(api_client) -> None:
+    response = api_client.post(
+        "/v1/batch/filings/query",
+        json={
+            "items": [
+                {"stock_code": "2330", "period": "2025Q1", "fields": ["eps_basic"]},
+                {"stock_code": "9999", "period": "2025Q1"},
+            ]
+        },
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert items[0]["data"]["snapshot"]["eps"] == 12.5
+    assert items[0]["data"]["facts"][0]["field"] == "eps_basic"
+    assert items[1]["error"]["code"] == "filing_not_found"
+
+
+def test_discovery_defines_units_and_all_absence_states(api_client) -> None:
+    assert api_client.get("/health/live").json()["status"] == "ok"
+    assert api_client.get("/health/ready").json()["status"] == "ready"
+    capabilities = api_client.get("/v1/capabilities").json()
+    assert capabilities["units"]["ratio"].startswith("decimal-scaled")
+    assert capabilities["units"]["percent"].startswith("100-scaled")
+    assert set(capabilities["data_states"]) == {
+        "present",
+        "missing",
+        "null",
+        "not_applicable",
+        "provider_failure",
+    }
+    assert any(field["name"] == "net_interest_income" for field in capabilities["fields"])
+
+
 def test_openapi_is_consumer_contract_baseline(api_client) -> None:
     schema = api_client.get("/openapi.json").json()
     required_paths = {
@@ -232,6 +267,11 @@ def test_openapi_is_consumer_contract_baseline(api_client) -> None:
         "evidence",
     } <= set(envelope["required"])
     assert envelope["properties"]["metrics"]["type"] == "object"
+
+
+def test_committed_openapi_matches_application(api_client) -> None:
+    committed = json.loads(Path("docs/openapi-v1.json").read_text(encoding="utf-8"))
+    assert committed == api_client.app.openapi()
 
 
 def test_refresh_and_job_contract(api_client) -> None:
