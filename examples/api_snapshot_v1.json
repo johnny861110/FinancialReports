@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0.0",
+  "identity": {
+    "stock_code": "2330",
+    "period": "2025Q1",
+    "filing_key": "2330_2025Q1",
+    "company_name": "台積電",
+    "company_name_zh": "台積電",
+    "company_name_en": "TSMC",
+    "industry": "半導體",
+    "market": "上市"
+  },
+  "status": "ready",
+  "pipeline_status": "validated",
+  "freshness": {
+    "state": "current",
+    "updated_at": "2026-08-24T12:00:00Z",
+    "is_stale": false,
+    "latest_source_at": "2026-08-24T11:55:00Z",
+    "stale_after_seconds": 86400
+  },
+  "quality": {
+    "score": 0.81,
+    "state": "present",
+    "missing_fields": [],
+    "validation_failures": [],
+    "validation_total": 6,
+    "validation_failed": 0,
+    "structured_source_coverage": 0.9
+  },
+  "snapshot": {
+    "net_revenue": 100000.0,
+    "gross_profit": 53000.0,
+    "operating_income": 45000.0,
+    "net_income": 39000.0,
+    "eps_basic": 12.5,
+    "eps": 12.5,
+    "total_assets": 500000.0,
+    "total_liabilities": 200000.0,
+    "equity": 300000.0,
+    "operating_cash_flow": 42000.0,
+    "free_cash_flow": 35000.0,
+    "net_interest_income": null,
+    "net_non_interest_income": null,
+    "loan_loss_provisions": null
+  },
+  "metrics": {"gross_margin": 0.53},
+  "metric_records": [
+    {
+      "name": "gross_margin",
+      "value": 0.53,
+      "unit": "ratio",
+      "formula": "gross_profit/net_revenue",
+      "inputs": {},
+      "confidence": 1.0
+    }
+  ],
+  "events": [],
+  "evidence": [],
+  "facts": [],
+  "field_availability": [],
+  "validation": [],
+  "comparisons": [],
+  "insight_cards": [],
+  "source_documents": [],
+  "pipeline_state": []
+}

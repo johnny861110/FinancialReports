@@ -1,0 +1,385 @@
+"""FastAPI application exposing FinancialReports contract v1."""
+
+from __future__ import annotations
+
+import os
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Annotated, Any
+
+from fastapi import BackgroundTasks, Depends, FastAPI, Query, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+from src.api.contracts import (
+    SCHEMA_VERSION,
+    BatchQueryRequest,
+    BatchQueryResponse,
+    BatchResult,
+    CapabilitiesResponse,
+    ContextEnvelope,
+    DataState,
+    ErrorDetail,
+    ErrorResponse,
+    FieldDefinition,
+    FilingEnvelope,
+    HealthResponse,
+    Identity,
+    JobResponse,
+    Pagination,
+    PeriodsResponse,
+    PeriodSummary,
+    PeriodType,
+    RefreshResponse,
+    StocksResponse,
+    StockSummary,
+)
+from src.api.jobs import JobRegistry
+from src.api.repository import APIRepository
+from src.api.service import APIProblem, build_envelope, ensure_fields, parse_period
+from src.domain.identity import FilingIdentity
+from src.domain.taxonomy import ALL_CANONICAL, CANONICAL_BALANCE, FIELD_TO_STATEMENT
+from src.pipeline.run import run_pipeline_async
+from src.storage.sqlite_store import SQLiteStore
+
+RefreshRunner = Callable[[FilingIdentity, SQLiteStore, Path], Awaitable[dict[str, Any]]]
+
+
+def _repository(request: Request) -> APIRepository:
+    return request.app.state.repository
+
+
+Repo = Annotated[APIRepository, Depends(_repository)]
+
+
+async def _default_refresh_runner(
+    identity: FilingIdentity, store: SQLiteStore, output_dir: Path
+) -> dict[str, Any]:
+    result = await run_pipeline_async(identity, store, output_dir, force=True)
+    failed = [stage for stage, state in result.items() if state.get("status") == "failed"]
+    if failed:
+        raise RuntimeError(f"pipeline stages failed: {', '.join(failed)}")
+    return result
+
+
+def create_app(
+    db_path: str | Path | None = None,
+    *,
+    refresh_runner: RefreshRunner | None = None,
+) -> FastAPI:
+    resolved_db = (
+        Path(db_path) if db_path is not None else Path(os.getenv("FR_DB_PATH", "data/financial.db"))
+    )
+    output_dir = Path(os.getenv("FR_OUTPUT_DIR", "data/raw"))
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        store = SQLiteStore(resolved_db)
+        app.state.store = store
+        app.state.repository = APIRepository(store)
+        app.state.jobs = JobRegistry()
+        app.state.refresh_runner = refresh_runner or _default_refresh_runner
+        app.state.output_dir = output_dir
+        yield
+        store.engine.dispose()
+
+    app = FastAPI(
+        title="FinancialReports API",
+        version=SCHEMA_VERSION,
+        openapi_url="/openapi.json",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        lifespan=lifespan,
+    )
+
+    @app.exception_handler(APIProblem)
+    async def api_problem_handler(request: Request, exc: APIProblem) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=ErrorResponse(
+                error=ErrorDetail(
+                    code=exc.code,
+                    message=exc.message,
+                    data_state=exc.data_state,
+                    retryable=exc.retryable,
+                    details=exc.details,
+                )
+            ).model_dump(mode="json"),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content=ErrorResponse(
+                error=ErrorDetail(
+                    code="validation_error",
+                    message="request validation failed",
+                    data_state=DataState.MISSING,
+                    details={"errors": exc.errors()},
+                )
+            ).model_dump(mode="json"),
+        )
+
+    @app.get("/health/live", response_model=HealthResponse, tags=["health"])
+    async def health_live() -> HealthResponse:
+        return HealthResponse(status="ok")
+
+    @app.get("/health/ready", response_model=HealthResponse, tags=["health"])
+    async def health_ready(repo: Repo) -> HealthResponse | JSONResponse:
+        if repo.ready():
+            return HealthResponse(status="ready")
+        return JSONResponse(
+            status_code=503, content=HealthResponse(status="not_ready").model_dump()
+        )
+
+    @app.get("/v1/capabilities", response_model=CapabilitiesResponse, tags=["discovery"])
+    async def capabilities() -> CapabilitiesResponse:
+        return _capabilities()
+
+    @app.get("/v1/schema", tags=["discovery"])
+    async def schema_discovery() -> dict[str, Any]:
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "openapi_url": "/openapi.json",
+            "capabilities": _capabilities().model_dump(mode="json"),
+            "models": {
+                "snapshot": FilingEnvelope.model_json_schema(),
+                "context": ContextEnvelope.model_json_schema(),
+                "error": ErrorResponse.model_json_schema(),
+            },
+        }
+
+    @app.get("/v1/stocks", response_model=StocksResponse, tags=["filings"])
+    async def list_stocks(
+        repo: Repo,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        offset: Annotated[int, Query(ge=0, le=100000)] = 0,
+        query: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+        industry: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+    ) -> StocksResponse:
+        rows, total = repo.list_stocks(limit, offset, query, industry)
+        stocks = [StockSummary(**row) for row in rows]
+        return StocksResponse(
+            items=stocks,
+            stocks=stocks,
+            pagination=Pagination(limit=limit, offset=offset, total=total),
+        )
+
+    @app.get("/v1/stocks/{stock_code}/periods", response_model=PeriodsResponse, tags=["filings"])
+    async def list_periods(
+        stock_code: str,
+        repo: Repo,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        offset: Annotated[int, Query(ge=0, le=100000)] = 0,
+    ) -> PeriodsResponse:
+        try:
+            rows, total = repo.list_periods(stock_code, limit, offset)
+        except LookupError as exc:
+            raise APIProblem(
+                404, "stock_not_found", "stock was not found", DataState.MISSING
+            ) from exc
+        items = [PeriodSummary(**row) for row in rows]
+        return PeriodsResponse(
+            stock_code=stock_code,
+            items=items,
+            periods=[item.period for item in items],
+            pagination=Pagination(limit=limit, offset=offset, total=total),
+        )
+
+    @app.get(
+        "/v1/filings/{stock_code}/{period}/snapshot",
+        response_model=FilingEnvelope,
+        responses={
+            404: {"model": ErrorResponse},
+            409: {"model": ErrorResponse},
+            503: {"model": ErrorResponse},
+        },
+        tags=["filings"],
+    )
+    async def snapshot(
+        stock_code: str,
+        period: str,
+        repo: Repo,
+        fields: Annotated[list[str] | None, Query()] = None,
+    ) -> FilingEnvelope:
+        selected = _validate_query(stock_code, period, fields)
+        return _get_envelope(repo, stock_code, period, selected)
+
+    @app.get(
+        "/v1/filings/{stock_code}/{period}/context",
+        response_model=ContextEnvelope,
+        responses={
+            404: {"model": ErrorResponse},
+            409: {"model": ErrorResponse},
+            503: {"model": ErrorResponse},
+        },
+        tags=["filings"],
+    )
+    async def context(
+        stock_code: str,
+        period: str,
+        repo: Repo,
+        fields: Annotated[list[str] | None, Query()] = None,
+        evidence_limit: Annotated[int, Query(ge=0, le=50)] = 10,
+    ) -> ContextEnvelope:
+        selected = _validate_query(stock_code, period, fields)
+        bundle = _get_bundle(repo, stock_code, period)
+        chunks = repo.get_chunks(bundle["filing"]["filing_key"], evidence_limit)
+        result = build_envelope(bundle, selected, chunks)
+        assert isinstance(result, ContextEnvelope)
+        return result
+
+    @app.post(
+        "/v1/filings/{stock_code}/{period}/refresh",
+        response_model=RefreshResponse,
+        status_code=202,
+        tags=["jobs"],
+    )
+    async def refresh(
+        stock_code: str, period: str, background_tasks: BackgroundTasks, request: Request
+    ) -> RefreshResponse:
+        year, quarter = _validate_identity(stock_code, period)
+        identity = Identity(
+            stock_code=stock_code,
+            period=period,
+            filing_key=f"{stock_code}_{period}",
+            company_name=stock_code,
+        )
+        job = request.app.state.jobs.create(identity)
+        background_tasks.add_task(
+            _execute_refresh,
+            request.app,
+            job.job_id,
+            FilingIdentity(stock_code=stock_code, year=year, quarter=quarter),
+        )
+        return RefreshResponse(job_id=job.job_id, status=job.status, identity=identity)
+
+    @app.get("/v1/jobs/{job_id}", response_model=JobResponse, tags=["jobs"])
+    async def get_job(job_id: str, request: Request) -> JobResponse:
+        job = request.app.state.jobs.get(job_id)
+        if job is None:
+            raise APIProblem(404, "job_not_found", "job was not found", DataState.MISSING)
+        return job
+
+    @app.post("/v1/batch/filings/query", response_model=BatchQueryResponse, tags=["batch"])
+    async def batch_query(payload: BatchQueryRequest, repo: Repo) -> BatchQueryResponse:
+        results: list[BatchResult] = []
+        for item in payload.items:
+            identity = Identity(
+                stock_code=item.stock_code,
+                period=item.period,
+                filing_key=f"{item.stock_code}_{item.period}",
+                company_name=item.stock_code,
+            )
+            try:
+                selected = _validate_query(item.stock_code, item.period, item.fields)
+                data = _get_envelope(repo, item.stock_code, item.period, selected)
+                results.append(BatchResult(identity=identity, data=data))
+            except APIProblem as exc:
+                results.append(
+                    BatchResult(
+                        identity=identity,
+                        error=ErrorDetail(
+                            code=exc.code,
+                            message=exc.message,
+                            data_state=exc.data_state,
+                            retryable=exc.retryable,
+                            details=exc.details,
+                        ),
+                    )
+                )
+        return BatchQueryResponse(items=results)
+
+    return app
+
+
+async def _execute_refresh(app: FastAPI, job_id: str, identity: FilingIdentity) -> None:
+    jobs: JobRegistry = app.state.jobs
+    jobs.running(job_id)
+    try:
+        result = await app.state.refresh_runner(identity, app.state.store, app.state.output_dir)
+        jobs.succeeded(job_id, result)
+    except Exception as exc:
+        jobs.failed(job_id, str(exc))
+
+
+def _validate_identity(stock_code: str, period: str) -> tuple[int, str]:
+    if not stock_code.isalnum() or len(stock_code) > 12:
+        raise APIProblem(
+            422, "invalid_stock_code", "stock_code must be alphanumeric", DataState.MISSING
+        )
+    return parse_period(period)
+
+
+def _validate_query(stock_code: str, period: str, fields: list[str] | None) -> list[str] | None:
+    _validate_identity(stock_code, period)
+    if fields is not None and len(fields) > 40:
+        raise APIProblem(422, "too_many_fields", "at most 40 fields are allowed", DataState.MISSING)
+    return ensure_fields(fields)
+
+
+def _get_bundle(repo: APIRepository, stock_code: str, period: str) -> dict[str, Any]:
+    bundle = repo.get_filing(stock_code, period)
+    if bundle is None:
+        raise APIProblem(404, "filing_not_found", "filing was not found", DataState.MISSING)
+    return bundle
+
+
+def _get_envelope(
+    repo: APIRepository, stock_code: str, period: str, fields: list[str] | None
+) -> FilingEnvelope:
+    result = build_envelope(_get_bundle(repo, stock_code, period), fields)
+    assert isinstance(result, FilingEnvelope) and not isinstance(result, ContextEnvelope)
+    return result
+
+
+def _capabilities() -> CapabilitiesResponse:
+    fields = [
+        FieldDefinition(
+            name=name,
+            statement=FIELD_TO_STATEMENT[name],
+            unit=meta["unit"],
+            label_zh=meta["zh"],
+            period_type=PeriodType.INSTANT if name in CANONICAL_BALANCE else PeriodType.DURATION,
+            xbrl_tags=meta.get("xbrl_tags", []),
+        )
+        for name, meta in ALL_CANONICAL.items()
+    ]
+    return CapabilitiesResponse(
+        endpoints=[
+            "GET /v1/filings/{stock_code}/{period}/snapshot",
+            "GET /v1/filings/{stock_code}/{period}/context",
+            "GET /v1/stocks/{stock_code}/periods",
+            "GET /v1/stocks",
+            "POST /v1/filings/{stock_code}/{period}/refresh",
+            "GET /v1/jobs/{job_id}",
+            "POST /v1/batch/filings/query",
+        ],
+        limits={
+            "stocks_page": 100,
+            "periods_page": 100,
+            "fields": 40,
+            "batch_items": 100,
+            "evidence_chunks": 50,
+        },
+        units={
+            "ratio": "decimal-scaled ratio; 0.25 means 25%",
+            "percent": "100-scaled percentage; 25 means 25%",
+            "TWD_thousands": "thousands of New Taiwan dollars",
+            "TWD_per_share": "New Taiwan dollars per share",
+            "unknown": "metric unit is not registered; consumer must not infer percent semantics",
+        },
+        data_states={
+            "present": "a value was supplied and validated by the contract",
+            "missing": "an applicable value was not supplied",
+            "null": "the property is known but its value is unknown",
+            "not_applicable": "the field does not apply to the company sector or statement",
+            "provider_failure": "retrieval or processing failed; retry may succeed",
+        },
+        fields=fields,
+    )
+
+
+app = create_app()
