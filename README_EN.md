@@ -71,7 +71,7 @@ uv sync --extra pdf
 |-------|-----------------|------------------|----------|
 | `pdf` | `uv sync --extra pdf` | PDF text and table extraction | pdfplumber, pypdfium2 |
 | `ocr` | `uv sync --extra ocr` | Scanned PDF recognition | PaddleOCR, OpenCV |
-| `vector` | `uv sync --extra vector` | Vector semantic search | ChromaDB, sentence-transformers |
+| `vector` | `uv sync --extra vector` | Generate chunk embeddings (`fr embed`) | sentence-transformers |
 | `llm` | `uv sync --extra llm` | Natural language Q&A | openai, tiktoken |
 | `all` | `uv sync --extra all` | All features | — |
 
@@ -651,8 +651,7 @@ FinancialReports/
 │   ├── storage/
 │   │   ├── schema.sql                # Full DDL for all 17 tables (with PRAGMA settings)
 │   │   ├── store.py                  # SQLAlchemy Core wrapper (upsert, bulk save)
-│   │   ├── json_exporter.py          # Export filing data to JSON
-│   │   └── vector_store.py           # Vector storage interface (ChromaDB, placeholder)
+│   │   └── json_exporter.py          # Export filing data to JSON
 │   │
 │   ├── analytics/
 │   │   ├── metrics.py                # Financial metric computation (pure functions)

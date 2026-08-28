@@ -68,8 +68,39 @@ validation records, comparisons, insight cards, source-document provenance
 
 Stock and period pages are bounded to 100 records. Snapshot/context field
 filters accept at most 40 known canonical fields. Context evidence chunks are
-bounded to 50. `POST /v1/batch/filings/query` accepts 1–100 identities and
-returns a success or typed error for each item.
+bounded to 50, and each chunk's `content` is capped (`truncated` flags when it
+was cut) so a caller cannot pull unbounded filing text into a prompt.
+`POST /v1/batch/filings/query` accepts 1–100 identities and returns a success
+or typed error for each item.
+
+## Question-directed retrieval
+
+`GET /v1/filings/{stock_code}/{period}/context` accepts two relevance
+parameters beyond `evidence_limit`:
+
+| Parameter | Meaning |
+| --- | --- |
+| `question` | Free text (≤500 chars). Ranks chunks by cosine similarity against stored embeddings; each returned chunk carries `retrieval_score`. |
+| `sections` | Repeatable section type, e.g. `sections=risk&sections=accounting_policy`. An unknown value returns 422 rather than silently matching nothing. |
+
+```
+GET /v1/filings/2330/2025Q1/context?question=會計政策有什麼變更&sections=accounting_policy&evidence_limit=5
+```
+
+Both are optional and degrade rather than fail:
+
+- A filing with no embeddings falls back to importance ordering, and
+  `retrieval_score` is `null`.
+- When the optional `vector` extra is not installed the question cannot be
+  embedded, so the request is served by `sections` and importance instead.
+
+Embeddings are generated offline with `fr embed` (requires
+`uv sync --extra vector`). The command is resumable — chunks that already have
+an embedding are skipped.
+
+Each chunk carries what a citation needs: `chunk_id`, `doc_id`, `checksum`,
+`source_url`, `page_number`, `section_type` and `section_title`. The source
+document's local filesystem path is never exposed.
 
 ## Release status
 

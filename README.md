@@ -73,7 +73,7 @@ uv sync --extra pdf
 |-------|----------|----------|------|
 | `pdf` | `uv sync --extra pdf` | PDF 文字與表格萃取 | pdfplumber, pypdfium2 |
 | `ocr` | `uv sync --extra ocr` | 掃描版 PDF 識別 | PaddleOCR, OpenCV |
-| `vector` | `uv sync --extra vector` | 向量語意搜尋 | ChromaDB, sentence-transformers |
+| `vector` | `uv sync --extra vector` | 產生 chunk 向量（`fr embed`） | sentence-transformers |
 | `llm` | `uv sync --extra llm` | 自然語言問答 | openai, tiktoken |
 | `all` | `uv sync --extra all` | 全部功能 | — |
 
@@ -520,7 +520,7 @@ revenue_growth      | 營收成長分析      | YoY 成長 16.5%，超越市場�
 | `document_pages` | PDF 全頁文字內容 |
 | `document_sections` | PDF 章節切分（損益表、資產負債表等） |
 | `document_chunks` | RAG 文字片段（~600 字/片段） |
-| `chunk_embeddings` | 向量嵌入（選用，需 --extra vector） |
+| `chunk_embeddings` | chunk 向量 `VECTOR(768)` + HNSW cosine 索引，由 `fr embed` 產生 |
 | `validation_results` | 七條驗證規則執行結果 |
 | `text_summaries` | 文字摘要 |
 | `insight_evidence` | 洞察卡片的佐證連結 |
@@ -684,8 +684,7 @@ FinancialReports/
 │   ├── storage/
 │   │   ├── schema.sql                # 17 張表完整 DDL（含 PRAGMA 設定）
 │   │   ├── store.py                  # SQLAlchemy Core wrapper（upsert、bulk save）
-│   │   ├── json_exporter.py          # 匯出 filing 資料為 JSON
-│   │   └── vector_store.py           # 向量儲存介面（ChromaDB，佔位）
+│   │   └── json_exporter.py          # 匯出 filing 資料為 JSON
 │   │
 │   ├── analytics/
 │   │   ├── metrics.py                # 財務指標計算（純函數）

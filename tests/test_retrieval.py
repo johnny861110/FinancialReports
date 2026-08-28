@@ -188,3 +188,35 @@ def test_evidence_limit_bounds_are_enforced(retrieval_client):
 
 def test_overlong_question_is_rejected(retrieval_client):
     assert _context(retrieval_client, question="漲" * 501).status_code == 422
+
+
+def test_duplicate_content_is_returned_once(retrieval_client):
+    """The ingestion pipeline stores the same text repeatedly.
+
+    94% of rows in the current data set are redundant copies, so without
+    deduplication the caller's bounded chunk budget is spent returning one
+    passage over and over. Distinct chunk ids with identical content must
+    collapse to a single result.
+    """
+    store = retrieval_client.store
+    ids = retrieval_client.chunk_ids
+    with store.conn() as conn:
+        original = conn.execute(
+            text(
+                "SELECT doc_id, section_id, page_number, content, importance_score"
+                " FROM document_chunks WHERE id=:i"
+            ),
+            {"i": ids["policy"]},
+        ).fetchone()
+    # A second chunk carrying byte-identical content, as the pipeline produces.
+    duplicate_id = store.save_chunk(
+        original[0], original[1], original[2], 1, original[3], importance_score=original[4]
+    )
+    assert duplicate_id != ids["policy"]
+
+    response = _context(retrieval_client, sections=["accounting_policy"], evidence_limit=10)
+
+    chunks = response.json()["evidence_chunks"]
+    contents = [c["content"] for c in chunks]
+    assert len(contents) == len(set(contents)), "duplicate content must collapse"
+    assert len([c for c in chunks if c["chunk_id"] in (ids["policy"], duplicate_id)]) == 1
