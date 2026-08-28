@@ -26,17 +26,25 @@ def _admin_url() -> str:
 
 @pytest.fixture(scope="session")
 def postgres_url() -> str:
-    """Base connection URL, skipping the suite when no database is reachable."""
+    """Base connection URL.
+
+    Skipping is a local-developer convenience only. In CI an unreachable
+    database must fail loudly: silently skipping every database test would let
+    the pipeline report green while covering nothing.
+    """
     url = _admin_url()
     engine = create_engine(url, pool_pre_ping=True)
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
     except Exception as exc:  # pragma: no cover - environment dependent
-        pytest.skip(
+        message = (
             f"PostgreSQL is not reachable at {url!r} ({exc}). "
             "Start it with `docker compose up -d db`."
         )
+        if os.getenv("CI"):
+            raise RuntimeError(message) from exc
+        pytest.skip(message)
     finally:
         engine.dispose()
     return url

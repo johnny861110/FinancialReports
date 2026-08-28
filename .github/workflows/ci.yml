@@ -13,6 +13,27 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
 
+    services:
+      # The suite runs against a real database. pgvector rather than plain
+      # postgres so the image already carries the extension the retrieval work
+      # needs next.
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: financial
+          POSTGRES_PASSWORD: financial
+          POSTGRES_DB: financial
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U financial -d financial"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      FR_DATABASE_URL: postgresql+psycopg://financial:financial@localhost:5432/financial
+
     steps:
       - uses: actions/checkout@v4
 
@@ -29,10 +50,10 @@ jobs:
         run: uv sync --group dev
 
       - name: Lint (ruff check)
-        run: uv run ruff check src/ tests/
+        run: uv run ruff check src/ tests/ scripts/
 
       - name: Format check (ruff format)
-        run: uv run ruff format --check src/ tests/
+        run: uv run ruff format --check src/ tests/ scripts/
 
       - name: Type check (mypy)
         run: uv run mypy src/ --ignore-missing-imports
