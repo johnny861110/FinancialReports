@@ -2,7 +2,7 @@
 
 The API is a versioned network contract for typed consumers. Consumers do not
 read this repository's SQLite database or local files. The committed
-`openapi-v1.json` is the baseline for generated clients and cross-repository
+`docs/openapi-v1.json` is the baseline for generated clients and cross-repository
 contract tests.
 
 ## Run locally
@@ -71,8 +71,9 @@ filters accept at most 40 known canonical fields. Context evidence chunks are
 bounded to 50. `POST /v1/batch/filings/query` accepts 1–100 identities and
 returns a success or typed error for each item.
 
-## Branch dependency
+## Release status
 
-This API branch is stacked on `fix/finmind-bank-support` because its field
-catalog includes the bank-specific taxonomy. Merge the FinMind/bank PR first,
-then this API PR.
+API v1 and the FinMind/bank taxonomy baseline are merged into `main`. The
+committed OpenAPI document and `tests/test_api_contract.py` are the compatibility
+boundary for Financial Agent and other typed consumers. Feature branches used
+during the rollout have been removed.

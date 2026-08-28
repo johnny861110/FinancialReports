@@ -90,6 +90,25 @@ FINMIND_TOKEN=              # FinMind 付費 token（免費層不需要）
 
 ## 2. 快速開始
 
+### 啟動 HTTP API v1
+
+完成 pipeline 並建立 `data/financial.db` 後，可啟動提供給 Financial Agent
+及其他 typed consumer 的唯讀/工作排程 API：
+
+```bash
+FR_DB_PATH=data/financial.db uv run uvicorn src.api.app:app --host 127.0.0.1 --port 8010
+```
+
+- Swagger UI：`http://127.0.0.1:8010/docs`
+- Readiness：`GET /health/ready`
+- Schema/capabilities：`GET /v1/schema`、`GET /v1/capabilities`
+- Filing：`GET /v1/filings/{stock_code}/{period}/snapshot`
+- Context：`GET /v1/filings/{stock_code}/{period}/context`
+
+完整 contract、狀態碼、單位與 absence semantics 請見
+[API v1 文件](docs/API_V1.md)。跨 repository 只支援 HTTP contract，不共用
+SQLite 檔案。
+
 ### 單筆執行
 
 ```bash
@@ -663,6 +682,14 @@ FinancialReports/
 │   │   ├── retriever.py              # 關鍵字檢索（FactRetriever、ChunkRetriever）
 │   │   └── context_builder.py        # LLM context pack 組裝（送給 OpenAI 前）
 │   │
+│   ├── api/
+│   │   ├── app.py                    # FastAPI v1 routes、health 與 error contract
+│   │   ├── contracts.py              # Versioned Pydantic consumer schema
+│   │   ├── service.py                # Filing envelope 與 capability 組裝
+│   │   ├── repository.py             # API 專用 SQLite read model
+│   │   ├── jobs.py                   # Process-local refresh job registry
+│   │   └── export_openapi.py         # 產生 committed OpenAPI artifact
+│   │
 │   └── pipeline/
 │       ├── run.py                    # 管道協調器（串接四階段）
 │       ├── ingest.py                 # Stage 1：下載
@@ -679,9 +706,8 @@ FinancialReports/
 │   ├── financial.db                  # SQLite 資料庫（預設路徑）
 │   ├── raw/                          # 下載的 XBRL / iXBRL 暫存
 │   └── financial_reports/            # PDF 本地快取
-├── config/
-│   ├── crawler_config.json           # 爬蟲設定（timeout、重試次數等）
-│   └── xbrl_tags.json                # XBRL tag 對應表
+├── docs/API_V1.md                    # HTTP API contract 與操作說明
+├── docs/openapi-v1.json              # 已提交的 API v1 OpenAPI baseline
 ├── SPEC.md                           # 完整技術規格文件
 ├── pyproject.toml                    # 專案設定與依賴
 ├── uv.lock                           # 鎖定依賴版本
@@ -696,7 +722,7 @@ FinancialReports/
 
 ```bash
 uv run pytest                              # 全部測試
-uv run pytest tests/test_parsers.py -v    # 指定測試檔案
+uv run pytest tests/test_api_contract.py -v # API contract 測試
 uv run pytest --cov=src/ --cov-report=html # 覆蓋率報告
 ```
 
