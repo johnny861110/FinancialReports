@@ -16,14 +16,14 @@ from src.normalize.company_mapper import resolve_company
 from src.sources.registry import get_mops_client, get_pdf_client, get_xbrl_client
 
 if TYPE_CHECKING:
-    from src.storage.sqlite_store import SQLiteStore
+    from src.storage.store import FilingStore
 
 logger = logging.getLogger(__name__)
 
 
 async def run_ingest_async(
     identity: FilingIdentity,
-    store: SQLiteStore,
+    store: FilingStore,
     output_dir: Path,
     force: bool = False,
     local_pdf_dir: Path | None = None,
@@ -150,7 +150,7 @@ async def _fetch_pdf(
 
 def run_ingest(
     identity: FilingIdentity,
-    store: SQLiteStore,
+    store: FilingStore,
     output_dir: Path,
     force: bool = False,
     local_pdf_dir: Path | None = None,

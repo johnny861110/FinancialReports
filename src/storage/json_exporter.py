@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.storage.sqlite_store import SQLiteStore
+    from src.storage.store import FilingStore
 
 
-def export_filing(store: SQLiteStore, filing_key: str) -> dict:
+def export_filing(store: FilingStore, filing_key: str) -> dict:
     """
     Export all data for a filing as a structured dict.
     Returns: {filing_key, facts, metrics, comparisons, events, insight_cards}
@@ -40,7 +40,7 @@ def export_filing(store: SQLiteStore, filing_key: str) -> dict:
     }
 
 
-def export_to_file(store: SQLiteStore, filing_key: str, output_path: str | Path) -> None:
+def export_to_file(store: FilingStore, filing_key: str, output_path: str | Path) -> None:
     """Export filing data to a JSON file."""
     data = export_filing(store, filing_key)
     out = Path(output_path)
@@ -48,7 +48,7 @@ def export_to_file(store: SQLiteStore, filing_key: str, output_path: str | Path)
     out.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def export_legacy_format(store: SQLiteStore, filing_key: str) -> dict:
+def export_legacy_format(store: FilingStore, filing_key: str) -> dict:
     """
     Export in the legacy v2 JSON schema for backward compatibility.
     Maps canonical fields back to the old structure used by legacy scripts.

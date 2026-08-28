@@ -10,12 +10,12 @@ from typing import TYPE_CHECKING
 from src.domain.identity import FilingIdentity
 
 if TYPE_CHECKING:
-    from src.storage.sqlite_store import SQLiteStore
+    from src.storage.store import FilingStore
 
 logger = logging.getLogger(__name__)
 
 
-def run_validate(identity: FilingIdentity, store: SQLiteStore) -> dict:
+def run_validate(identity: FilingIdentity, store: FilingStore) -> dict:
     """
     Pipeline stage 3: Run validation rules and compute quality score.
 

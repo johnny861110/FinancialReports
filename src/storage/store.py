@@ -1,5 +1,5 @@
 """
-SQLite storage layer using SQLAlchemy Core.
+PostgreSQL storage layer using SQLAlchemy Core.
 All SQL is executed via sqlalchemy.text() for explicit, auditable queries.
 """
 
@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -21,33 +22,34 @@ logger = logging.getLogger(__name__)
 
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
+DEFAULT_DATABASE_URL = "postgresql+psycopg://financial:financial@localhost:5432/financial"
 
-class SQLiteStore:
-    """Manages all SQLite persistence for the Financial Insight Engine."""
 
-    def __init__(self, db_path: str | Path) -> None:
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.engine: Engine = create_engine(
-            f"sqlite:///{self.db_path}",
-            connect_args={"check_same_thread": False, "timeout": 30},
-        )
+def resolve_database_url(database_url: str | None = None) -> str:
+    """Return the connection URL, falling back to FR_DATABASE_URL then the default."""
+    return database_url or os.getenv("FR_DATABASE_URL") or DEFAULT_DATABASE_URL
+
+
+class FilingStore:
+    """Manages all PostgreSQL persistence for the Financial Insight Engine."""
+
+    def __init__(self, database_url: str | None = None) -> None:
+        self.database_url = resolve_database_url(database_url)
+        self.engine: Engine = create_engine(self.database_url, pool_pre_ping=True)
         self.init_db()
-        # Enable WAL mode for better write concurrency
-        with self.engine.connect() as conn:
-            conn.execute(text("PRAGMA journal_mode=WAL"))
-            conn.execute(text("PRAGMA synchronous=NORMAL"))
-            conn.commit()
 
     def init_db(self) -> None:
         """Create all tables from schema.sql."""
         sql = _SCHEMA_PATH.read_text(encoding="utf-8")
+        # Strip line comments before splitting: statements are separated on ";",
+        # so a semicolon inside a comment would otherwise become a statement.
+        stripped = "\n".join(line.split("--", 1)[0] for line in sql.splitlines())
         with self.engine.begin() as conn:
-            for statement in sql.split(";"):
+            for statement in stripped.split(";"):
                 stmt = statement.strip()
                 if stmt:
                     conn.execute(text(stmt))
-        logger.debug("Database initialised at %s", self.db_path)
+        logger.debug("Database initialised at %s", self.engine.url.render_as_string())
 
     @contextmanager
     def conn(self) -> Generator[Connection, None, None]:
@@ -87,7 +89,7 @@ class SQLiteStore:
             result = c.execute(
                 text(
                     "INSERT INTO companies(stock_code, name_zh, name_en, industry, market)"
-                    " VALUES(:sc,:nz,:ne,:ind,:mkt)"
+                    " VALUES(:sc,:nz,:ne,:ind,:mkt) RETURNING id"
                 ),
                 {
                     "sc": stock_code,
@@ -97,7 +99,7 @@ class SQLiteStore:
                     "mkt": kwargs.get("market"),
                 },
             )
-            return result.lastrowid  # type: ignore[return-value]
+            return int(result.scalar_one())
 
     # ------------------------------------------------------------------
     # Filing
@@ -112,14 +114,14 @@ class SQLiteStore:
             ).fetchone()
             if existing:
                 c.execute(
-                    text("UPDATE filings SET updated_at=datetime('now') WHERE id=:id"),
+                    text("UPDATE filings SET updated_at=now() WHERE id=:id"),
                     {"id": existing[0]},
                 )
                 return existing[0]
             result = c.execute(
                 text(
                     "INSERT INTO filings(filing_key, company_id, year, quarter, status)"
-                    " VALUES(:fk,:cid,:yr,:qt,'pending')"
+                    " VALUES(:fk,:cid,:yr,:qt,'pending') RETURNING id"
                 ),
                 {
                     "fk": identity.filing_key,
@@ -128,7 +130,7 @@ class SQLiteStore:
                     "qt": identity.quarter,
                 },
             )
-            return result.lastrowid  # type: ignore[return-value]
+            return int(result.scalar_one())
 
     def get_or_create_filing(self, identity: FilingIdentity, company_id: int) -> int:
         """Return existing filing id or create new one."""
@@ -156,7 +158,7 @@ class SQLiteStore:
     def update_filing_status(self, filing_id: int, status: str) -> None:
         with self.conn() as c:
             c.execute(
-                text("UPDATE filings SET status=:st, updated_at=datetime('now') WHERE id=:id"),
+                text("UPDATE filings SET status=:st, updated_at=now() WHERE id=:id"),
                 {"st": status, "id": filing_id},
             )
 
@@ -184,7 +186,7 @@ class SQLiteStore:
                     text(
                         "UPDATE source_documents SET local_path=COALESCE(:lp, local_path),"
                         " url=COALESCE(:url, url), file_size=COALESCE(:fs, file_size),"
-                        " downloaded_at=datetime('now')"
+                        " downloaded_at=now()"
                         " WHERE id=:id"
                     ),
                     {"lp": lp, "url": url, "fs": file_size, "id": existing[0]},
@@ -194,11 +196,11 @@ class SQLiteStore:
                 text(
                     "INSERT INTO source_documents"
                     "(filing_id, doc_type, local_path, url, file_size, downloaded_at, parse_status)"
-                    " VALUES(:fid,:dt,:lp,:url,:fs,datetime('now'),'pending')"
+                    " VALUES(:fid,:dt,:lp,:url,:fs,now(),'pending') RETURNING id"
                 ),
                 {"fid": filing_id, "dt": doc_type, "lp": lp, "url": url, "fs": file_size},
             )
-            return result.lastrowid  # type: ignore[return-value]
+            return int(result.scalar_one())
 
     # ------------------------------------------------------------------
     # Facts
@@ -242,11 +244,11 @@ class SQLiteStore:
                     "INSERT INTO financial_facts"
                     "(filing_id,field,value,unit,period_start,period_end,"
                     " period_type,source_type,confidence,xbrl_tag)"
-                    " VALUES(:fid,:fld,:val,:unit,:ps,:pe,:pt,:st,:conf,:xt)"
+                    " VALUES(:fid,:fld,:val,:unit,:ps,:pe,:pt,:st,:conf,:xt) RETURNING id"
                 ),
                 params,
             )
-            return result.lastrowid  # type: ignore[return-value]
+            return int(result.scalar_one())
 
     def save_facts_bulk(self, filing_id: int, facts: list[Fact]) -> None:
         """Upsert many Facts efficiently."""
@@ -271,16 +273,19 @@ class SQLiteStore:
         with self.conn() as c:
             c.execute(
                 text(
-                    "INSERT OR REPLACE INTO document_pages"
+                    "INSERT INTO document_pages"
                     "(doc_id, page_number, text_content, char_count, has_tables)"
                     " VALUES(:did,:pn,:tc,:cc,:ht)"
+                    " ON CONFLICT (doc_id, page_number) DO UPDATE SET"
+                    " text_content=EXCLUDED.text_content,"
+                    " char_count=EXCLUDED.char_count, has_tables=EXCLUDED.has_tables"
                 ),
                 {
                     "did": doc_id,
                     "pn": page_number,
                     "tc": text_content,
                     "cc": char_count,
-                    "ht": 1 if has_tables else 0,
+                    "ht": has_tables,
                 },
             )
 
@@ -298,7 +303,7 @@ class SQLiteStore:
                 text(
                     "INSERT INTO document_sections"
                     "(doc_id, section_type, title, page_start, page_end, content)"
-                    " VALUES(:did,:st,:t,:ps,:pe,:ct)"
+                    " VALUES(:did,:st,:t,:ps,:pe,:ct) RETURNING id"
                 ),
                 {
                     "did": doc_id,
@@ -309,7 +314,7 @@ class SQLiteStore:
                     "ct": content,
                 },
             )
-            return result.lastrowid  # type: ignore[return-value]
+            return int(result.scalar_one())
 
     def save_chunk(
         self,
@@ -327,7 +332,7 @@ class SQLiteStore:
                     "(doc_id,section_id,page_number,chunk_index,content,"
                     " char_offset_start,char_offset_end,contains_numbers,"
                     " contains_table,importance_score)"
-                    " VALUES(:did,:sid,:pn,:ci,:ct,:cos,:coe,:cn,:ctb,:imp)"
+                    " VALUES(:did,:sid,:pn,:ci,:ct,:cos,:coe,:cn,:ctb,:imp) RETURNING id"
                 ),
                 {
                     "did": doc_id,
@@ -337,12 +342,12 @@ class SQLiteStore:
                     "ct": content,
                     "cos": kwargs.get("char_offset_start"),
                     "coe": kwargs.get("char_offset_end"),
-                    "cn": 1 if kwargs.get("contains_numbers") else 0,
-                    "ctb": 1 if kwargs.get("contains_table") else 0,
+                    "cn": bool(kwargs.get("contains_numbers")),
+                    "ctb": bool(kwargs.get("contains_table")),
                     "imp": kwargs.get("importance_score", 0.5),
                 },
             )
-            return result.lastrowid  # type: ignore[return-value]
+            return int(result.scalar_one())
 
     # ------------------------------------------------------------------
     # Metrics / Comparisons / Events
@@ -360,9 +365,12 @@ class SQLiteStore:
         with self.conn() as c:
             c.execute(
                 text(
-                    "INSERT OR REPLACE INTO financial_metrics"
+                    "INSERT INTO financial_metrics"
                     "(filing_id, metric_name, value, formula, inputs_json)"
                     " VALUES(:fid,:mn,:val,:f,:ij)"
+                    " ON CONFLICT (filing_id, metric_name) DO UPDATE SET"
+                    " value=EXCLUDED.value, formula=EXCLUDED.formula,"
+                    " inputs_json=EXCLUDED.inputs_json"
                 ),
                 {
                     "fid": filing_id,
@@ -396,7 +404,7 @@ class SQLiteStore:
         with self.conn() as c:
             c.execute(
                 text(
-                    "INSERT OR REPLACE INTO period_comparisons"
+                    "INSERT INTO period_comparisons"
                     "(filing_id,compare_filing_id,field,compare_type,"
                     " current_value,prior_value,change_abs,change_pct,direction,significance)"
                     " VALUES(:fid,:cfid,:fld,:ct,:cv,:pv,:ca,:cp,:dir,:sig)"
@@ -450,7 +458,7 @@ class SQLiteStore:
                 text(
                     "INSERT INTO insight_cards"
                     "(filing_id,card_type,title,summary,data_points,sentiment,confidence)"
-                    " VALUES(:fid,:ct,:t,:s,:dp,:sent,:conf)"
+                    " VALUES(:fid,:ct,:t,:s,:dp,:sent,:conf) RETURNING id"
                 ),
                 {
                     "fid": filing_id,
@@ -462,7 +470,7 @@ class SQLiteStore:
                     "conf": card.confidence,
                 },
             )
-            return result.lastrowid  # type: ignore[return-value]
+            return int(result.scalar_one())
 
     def save_validation_result(
         self,
@@ -482,7 +490,7 @@ class SQLiteStore:
                 {
                     "fid": filing_id,
                     "rn": rule_name,
-                    "p": 1 if passed else 0,
+                    "p": passed,
                     "sv": severity,
                     "msg": message,
                 },
@@ -505,7 +513,7 @@ class SQLiteStore:
                 c.execute(
                     text(
                         "UPDATE pipeline_runs SET status=:s,"
-                        " finished_at=datetime('now'), error_message=:err"
+                        " finished_at=now(), error_message=:err"
                         " WHERE filing_key=:fk AND stage=:st"
                         "   AND status='started'"
                     ),

@@ -41,9 +41,9 @@ from src.api.service import APIProblem, build_envelope, ensure_fields, parse_per
 from src.domain.identity import FilingIdentity
 from src.domain.taxonomy import ALL_CANONICAL, CANONICAL_BALANCE, FIELD_TO_STATEMENT
 from src.pipeline.run import run_pipeline_async
-from src.storage.sqlite_store import SQLiteStore
+from src.storage.store import FilingStore, resolve_database_url
 
-RefreshRunner = Callable[[FilingIdentity, SQLiteStore, Path], Awaitable[dict[str, Any]]]
+RefreshRunner = Callable[[FilingIdentity, FilingStore, Path], Awaitable[dict[str, Any]]]
 
 
 def _repository(request: Request) -> APIRepository:
@@ -54,7 +54,7 @@ Repo = Annotated[APIRepository, Depends(_repository)]
 
 
 async def _default_refresh_runner(
-    identity: FilingIdentity, store: SQLiteStore, output_dir: Path
+    identity: FilingIdentity, store: FilingStore, output_dir: Path
 ) -> dict[str, Any]:
     result = await run_pipeline_async(identity, store, output_dir, force=True)
     failed = [stage for stage, state in result.items() if state.get("status") == "failed"]
@@ -64,18 +64,16 @@ async def _default_refresh_runner(
 
 
 def create_app(
-    db_path: str | Path | None = None,
+    database_url: str | None = None,
     *,
     refresh_runner: RefreshRunner | None = None,
 ) -> FastAPI:
-    resolved_db = (
-        Path(db_path) if db_path is not None else Path(os.getenv("FR_DB_PATH", "data/financial.db"))
-    )
+    resolved_url = resolve_database_url(database_url)
     output_dir = Path(os.getenv("FR_OUTPUT_DIR", "data/raw"))
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        store = SQLiteStore(resolved_db)
+        store = FilingStore(resolved_url)
         app.state.store = store
         app.state.repository = APIRepository(store)
         app.state.jobs = JobRegistry()

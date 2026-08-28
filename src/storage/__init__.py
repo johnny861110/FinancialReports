@@ -1,12 +1,12 @@
 """Storage layer: SQLite, JSON export, and optional vector store."""
 
 from .json_exporter import export_filing, export_legacy_format, export_to_file
-from .sqlite_store import SQLiteStore
+from .store import FilingStore
 from .vector_store import VectorStore
 from .vector_store import is_available as vector_store_available
 
 __all__ = [
-    "SQLiteStore",
+    "FilingStore",
     "VectorStore",
     "vector_store_available",
     "export_filing",

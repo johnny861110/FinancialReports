@@ -1,17 +1,16 @@
-"""Tests for SQLite storage layer."""
+"""Tests for the PostgreSQL storage layer."""
 
 import pytest
 
 from src.domain.identity import FilingIdentity
 from src.domain.models import Fact, InsightCard
-from src.storage.sqlite_store import SQLiteStore
+from src.storage.store import FilingStore
 
 
 @pytest.fixture
-def store(tmp_path):
-    """Create a fresh SQLiteStore in a temp directory."""
-    db_path = tmp_path / "test.db"
-    return SQLiteStore(db_path)
+def store(database_url):
+    """Create a fresh FilingStore in a disposable schema."""
+    return FilingStore(database_url)
 
 
 @pytest.fixture

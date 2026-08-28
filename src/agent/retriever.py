@@ -8,7 +8,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.storage.sqlite_store import SQLiteStore
+    from src.storage.store import FilingStore
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class FactRetriever:
     """Retrieve structured financial facts and metrics from storage."""
 
-    def __init__(self, store: SQLiteStore) -> None:
+    def __init__(self, store: FilingStore) -> None:
         self.store = store
 
     def get_facts(self, filing_key: str, fields: list[str] | None = None) -> list[dict]:
@@ -51,7 +51,7 @@ class FactRetriever:
 class ChunkRetriever:
     """Retrieve text chunks for RAG retrieval."""
 
-    def __init__(self, store: SQLiteStore) -> None:
+    def __init__(self, store: FilingStore) -> None:
         self.store = store
 
     def search_keyword(

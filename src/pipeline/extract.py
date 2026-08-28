@@ -17,7 +17,7 @@ from src.normalize.fact_mapper import map_facts
 from src.normalize.period_normalizer import quarter_to_dates
 
 if TYPE_CHECKING:
-    from src.storage.sqlite_store import SQLiteStore
+    from src.storage.store import FilingStore
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ _PDF_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pdf_parse"
 
 async def run_extract_async(
     identity: FilingIdentity,
-    store: SQLiteStore,
+    store: FilingStore,
     doc_paths: dict,
     force: bool = False,
 ) -> dict:
@@ -324,7 +324,7 @@ def _pdf_table_fallback(filing_id, fk, identity, store, pdf_path: Path, sections
 
 def run_extract(
     identity: FilingIdentity,
-    store: SQLiteStore,
+    store: FilingStore,
     doc_paths: dict,
     force: bool = False,
 ) -> dict:

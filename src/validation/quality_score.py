@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from src.domain.taxonomy import ALL_CANONICAL
 
 if TYPE_CHECKING:
-    from src.storage.sqlite_store import SQLiteStore
+    from src.storage.store import FilingStore
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ _WEIGHT_VALIDATION_PASS = 0.20
 _WEIGHT_EVIDENCE = 0.10
 
 
-def compute_quality_score(filing_key: str, store: SQLiteStore) -> float:
+def compute_quality_score(filing_key: str, store: FilingStore) -> float:
     """
     Compute a 0.0–1.0 data quality score for a filing.
 

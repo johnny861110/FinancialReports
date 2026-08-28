@@ -8,7 +8,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.storage.sqlite_store import SQLiteStore
+    from src.storage.store import FilingStore
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def reconcile_fact(
     }
 
 
-def reconcile_filing(store: SQLiteStore, filing_key: str) -> list[dict]:
+def reconcile_filing(store: FilingStore, filing_key: str) -> list[dict]:
     """
     Cross-check all facts with multiple sources for a filing.
     Returns list of reconciliation results for fields with multiple sources.

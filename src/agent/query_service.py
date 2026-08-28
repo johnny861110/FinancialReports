@@ -11,7 +11,7 @@ from src.agent.retriever import ChunkRetriever, FactRetriever
 from src.domain.identity import FilingIdentity
 
 if TYPE_CHECKING:
-    from src.storage.sqlite_store import SQLiteStore
+    from src.storage.store import FilingStore
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class FinancialQueryService:
     Combines structured facts, metrics, comparisons, and text retrieval.
     """
 
-    def __init__(self, store: SQLiteStore) -> None:
+    def __init__(self, store: FilingStore) -> None:
         self.store = store
         self._facts = FactRetriever(store)
         self._chunks = ChunkRetriever(store)

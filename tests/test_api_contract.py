@@ -64,8 +64,8 @@ class ConsumerSnapshotRecord(BaseModel):
 
 
 @pytest.fixture
-def api_client(tmp_path):
-    app = create_app(tmp_path / "api.db")
+def api_client(database_url):
+    app = create_app(database_url)
     with TestClient(app) as client:
         store = client.app.state.store
         identity = FilingIdentity(stock_code="2330", year=2025, quarter="Q1")
@@ -141,7 +141,7 @@ def api_client(tmp_path):
             conn.execute(
                 text(
                     "UPDATE filings SET status='validated', quality_score=0.81,"
-                    " updated_at=datetime('now') WHERE id=:filing_id"
+                    " updated_at=now() WHERE id=:filing_id"
                 ),
                 {"filing_id": filing_id},
             )
