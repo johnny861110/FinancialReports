@@ -41,6 +41,9 @@ XBRL / iXBRL / PDF / FinMind API
 10. [Project Structure](#10-project-structure)
 11. [Development Guide](#11-development-guide)
 
+For the versioned HTTP contract used by cross-repository typed consumers, see
+[FinancialReports API v1](docs/API_V1.md).
+
 ---
 
 ## 1. Requirements & Installation
@@ -84,6 +87,25 @@ FINMIND_TOKEN=              # FinMind paid tier token (not required for free tie
 ---
 
 ## 2. Quick Start
+
+### Start HTTP API v1
+
+After the pipeline has populated `data/financial.db`, start the producer API
+used by Financial Agent and other typed consumers:
+
+```bash
+FR_DB_PATH=data/financial.db uv run uvicorn src.api.app:app --host 127.0.0.1 --port 8010
+```
+
+- Swagger UI: `http://127.0.0.1:8010/docs`
+- Readiness: `GET /health/ready`
+- Schema/capabilities: `GET /v1/schema`, `GET /v1/capabilities`
+- Filing: `GET /v1/filings/{stock_code}/{period}/snapshot`
+- Context: `GET /v1/filings/{stock_code}/{period}/context`
+
+See [API v1](docs/API_V1.md) for status codes, units, absence semantics, and
+the complete contract. Cross-repository consumers use HTTP and never share the
+producer SQLite file.
 
 ### Single Filing
 
@@ -648,6 +670,14 @@ FinancialReports/
 │   │   ├── retriever.py              # Keyword retrieval (FactRetriever, ChunkRetriever)
 │   │   └── context_builder.py        # Assemble LLM context pack (sent to OpenAI)
 │   │
+│   ├── api/
+│   │   ├── app.py                    # FastAPI v1 routes, health, and errors
+│   │   ├── contracts.py              # Versioned Pydantic consumer schema
+│   │   ├── service.py                # Filing envelope and capability assembly
+│   │   ├── repository.py             # API-specific SQLite read model
+│   │   ├── jobs.py                   # Process-local refresh job registry
+│   │   └── export_openapi.py         # Committed OpenAPI artifact generator
+│   │
 │   └── pipeline/
 │       ├── run.py                    # Pipeline orchestrator (chains all four stages)
 │       ├── ingest.py                 # Stage 1: download
@@ -664,9 +694,8 @@ FinancialReports/
 │   ├── financial.db                  # SQLite database (default path)
 │   ├── raw/                          # Downloaded XBRL / iXBRL staging area
 │   └── financial_reports/            # Local PDF cache
-├── config/
-│   ├── crawler_config.json           # Crawler settings (timeout, retry count, etc.)
-│   └── xbrl_tags.json                # XBRL tag mapping table
+├── docs/API_V1.md                    # HTTP API contract and operations
+├── docs/openapi-v1.json              # Committed API v1 OpenAPI baseline
 ├── SPEC.md                           # Full technical specification document
 ├── pyproject.toml                    # Project config and dependencies
 ├── uv.lock                           # Locked dependency versions
@@ -681,7 +710,7 @@ FinancialReports/
 
 ```bash
 uv run pytest                                  # Run all tests
-uv run pytest tests/test_parsers.py -v        # Run a specific test file
+uv run pytest tests/test_api_contract.py -v   # Run API contract tests
 uv run pytest --cov=src/ --cov-report=html    # Generate coverage report
 ```
 

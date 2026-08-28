@@ -6,6 +6,33 @@
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-08-28
+
+### Added
+
+- Added the versioned FastAPI v1 producer contract for typed consumers.
+- Added schema and capability discovery, stock/period pagination, filing
+  snapshot and context responses, bounded batch queries, refresh jobs, and
+  health/readiness endpoints.
+- Added rich filing envelopes containing canonical facts, units, absence
+  states, quality, freshness, validation, comparisons, evidence, source
+  documents, insight cards, and pipeline state.
+- Added a committed OpenAPI artifact and runtime drift test.
+- Added Financial Agent compatibility fixtures and contract tests.
+
+### Changed
+
+- Corrected FinMind mappings and added bank-sector canonical fields before
+  publishing the v1 schema.
+- Established HTTP as the supported cross-repository boundary; consumers do
+  not access the producer SQLite database directly.
+
+### Verified
+
+- Python 3.10, 3.11, and 3.12 CI matrix passed before merge.
+- Financial Agent consumed a real `2330/2025Q1` filing from producer `main`
+  with JSON fallback disabled.
+
 ## [0.3.0] — 2026-06-08
 
 ### Fixed

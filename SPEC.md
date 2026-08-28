@@ -1,7 +1,7 @@
 # Financial Reports Insight Engine — 完整規格文件
 
 **版本：** 3.0.0  
-**日期：** 2026-05-24  
+**日期：** 2026-08-28
 **系統：** Taiwan 上市櫃公司財務報表萃取與分析引擎
 
 ---
@@ -15,7 +15,7 @@
 5. [管道四階段詳細說明](#5-管道四階段詳細說明)
 6. [Domain Models（Pydantic v2）](#6-domain-modelspydantic-v2)
 7. [Canonical 欄位分類表](#7-canonical-欄位分類表)
-8. [外部 API 規格](#8-外部-api-規格)
+8. [HTTP API 與外部資料來源](#8-http-api-與外部資料來源)
 9. [驗證規則](#9-驗證規則)
 10. [計算指標](#10-計算指標)
 11. [事件偵測規則](#11-事件偵測規則)
@@ -955,9 +955,39 @@ class DetectedEvent(BaseModel):
 
 ---
 
-## 8. 外部 API 規格
+## 8. HTTP API 與外部資料來源
 
-### 8.1 FinMind API（主要財務數據來源）
+### 8.1 FinancialReports HTTP API v1
+
+本專案以 FastAPI 提供跨 repository 的 versioned consumer contract。正式
+邊界是 HTTP 與 committed `docs/openapi-v1.json`，consumer 不得直接讀取本專案
+SQLite 或本地檔案。
+
+**啟動：**
+
+```bash
+FR_DB_PATH=data/financial.db uv run uvicorn src.api.app:app --host 127.0.0.1 --port 8010
+```
+
+**主要端點：**
+
+| 類型 | 端點 |
+|------|------|
+| 健康 | `GET /health/live`, `GET /health/ready` |
+| 發現 | `GET /v1/schema`, `GET /v1/capabilities` |
+| Filing | `GET /v1/filings/{stock_code}/{period}/snapshot` |
+| Context | `GET /v1/filings/{stock_code}/{period}/context` |
+| 清單 | `GET /v1/stocks`, `GET /v1/stocks/{stock_code}/periods` |
+| 工作 | `POST /v1/filings/{stock_code}/{period}/refresh`, `GET /v1/jobs/{job_id}` |
+| 批次 | `POST /v1/batch/filings/query` |
+
+回應 schema 版本為 `1.0.0`，包含 filing identity、readiness、pipeline
+status、freshness、quality、snapshot、canonical facts、field availability、
+validation、metrics、comparisons、events、evidence、insight cards、source
+documents 與 pipeline state。詳細狀態碼、限制與 absence/unit 語意見
+`docs/API_V1.md`。
+
+### 8.2 FinMind API（主要財務數據來源）
 
 **Base URL：** `https://api.finmindtrade.com/api/v4/data`
 
@@ -1007,13 +1037,13 @@ if unit == "TWD_thousands" and abs(value) >= 1000:
 
 **SSL：** WSL 環境需 `verify=False`
 
-### 8.2 MOPS（公開資訊觀測站）
+### 8.3 MOPS（公開資訊觀測站）
 
 **用途：** 查詢公司基本資料（name_zh, industry, market）
 
 **注意：** MOPS 封鎖自動化 XBRL 下載，只能查詢公司資訊
 
-### 8.3 TWSE（台灣證券交易所）
+### 8.4 TWSE（台灣證券交易所）
 
 **用途：** PDF 財務報告下載
 
@@ -1166,6 +1196,13 @@ FinancialReports/
 │   │   ├── query_service.py          # 高層查詢介面
 │   │   ├── retriever.py              # 關鍵字檢索（facts, chunks）
 │   │   └── context_builder.py        # LLM context pack 組裝
+│   ├── api/
+│   │   ├── app.py                    # FastAPI v1 routes 與 health
+│   │   ├── contracts.py              # Versioned consumer schema
+│   │   ├── service.py                # Filing envelope 組裝
+│   │   ├── repository.py             # API SQLite read model
+│   │   ├── jobs.py                   # Process-local refresh jobs
+│   │   └── export_openapi.py         # OpenAPI artifact 產生器
 │   └── pipeline/
 │       ├── run.py                    # 管道協調器
 │       ├── ingest.py                 # Stage 1
@@ -1182,9 +1219,9 @@ FinancialReports/
 │   ├── raw/                          # XBRL/iXBRL 下載暫存
 │   └── financial_reports/            # PDF 本地快取
 │       └── {period_code}_{stock_code}_AI1.pdf
-├── config/
-│   ├── crawler_config.json
-│   └── xbrl_tags.json
+├── docs/
+│   ├── API_V1.md                     # HTTP API contract
+│   └── openapi-v1.json               # Committed OpenAPI baseline
 ├── pyproject.toml
 ├── uv.lock
 └── .env                              # OPENAI_API_KEY, FINMIND_TOKEN
