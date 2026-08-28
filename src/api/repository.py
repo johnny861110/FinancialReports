@@ -216,21 +216,96 @@ class APIRepository:
             "pipeline_state": pipeline,
         }
 
-    def get_chunks(self, filing_key: str, limit: int) -> list[dict[str, Any]]:
+    # Citation-bearing columns. local_path is deliberately absent: internal
+    # filesystem paths must never be handed out as citations.
+    _CHUNK_COLUMNS = (
+        "dc.id, dc.doc_id, dc.page_number, ds.section_type,"
+        " ds.title AS section_title, dc.content, dc.importance_score,"
+        " sd.checksum, sd.url AS source_url"
+    )
+    _CHUNK_JOINS = (
+        " FROM document_chunks dc"
+        " JOIN source_documents sd ON sd.id=dc.doc_id"
+        " JOIN filings f ON f.id=sd.filing_id"
+        " LEFT JOIN document_sections ds ON ds.id=dc.section_id"
+    )
+
+    def get_chunks(
+        self,
+        filing_key: str,
+        limit: int,
+        *,
+        sections: list[str] | None = None,
+        question_embedding: list[float] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return evidence chunks, optionally filtered and ranked by relevance.
+
+        `sections` narrows to the named section types and is always available.
+        `question_embedding` ranks by cosine distance against stored embeddings;
+        when a filing has none it degrades to importance order rather than
+        returning nothing, so a filing that has not been embedded still answers.
+
+        Results are deduplicated by content. The ingestion pipeline currently
+        stores the same text many times over (94% of rows in the present data
+        set are redundant copies), and without this the caller's bounded chunk
+        budget would be spent returning one passage repeatedly.
+        """
+        params: dict[str, Any] = {"filing_key": filing_key, "limit": limit}
+        where = " WHERE f.filing_key=:filing_key"
+        if sections:
+            where += " AND ds.section_type = ANY(:sections)"
+            params["sections"] = list(sections)
+
+        if question_embedding is not None and self._has_embeddings(filing_key):
+            params["query_vec"] = str(list(question_embedding))
+            distance = "ce.embedding <=> CAST(:query_vec AS vector)"
+            inner = (
+                f"SELECT DISTINCT ON (dc.content) {self._CHUNK_COLUMNS},"
+                f" 1 - ({distance}) AS retrieval_score"
+                + self._CHUNK_JOINS
+                + " JOIN chunk_embeddings ce ON ce.chunk_id = dc.id"
+                + where
+                + f" ORDER BY dc.content, {distance}, dc.id"
+            )
+            sql = f"SELECT * FROM ({inner}) t ORDER BY t.retrieval_score DESC, t.id LIMIT :limit"
+        else:
+            inner = (
+                f"SELECT DISTINCT ON (dc.content) {self._CHUNK_COLUMNS},"
+                " NULL::double precision AS retrieval_score"
+                + self._CHUNK_JOINS
+                + where
+                + " ORDER BY dc.content, dc.importance_score DESC, dc.id"
+            )
+            sql = f"SELECT * FROM ({inner}) t ORDER BY t.importance_score DESC, t.id LIMIT :limit"
+
+        with self.store.conn() as conn:
+            rows = conn.execute(text(sql), params).fetchall()
+        return _dicts(rows)
+
+    def _has_embeddings(self, filing_key: str) -> bool:
+        with self.store.conn() as conn:
+            return bool(
+                conn.execute(
+                    text(
+                        "SELECT 1 FROM chunk_embeddings ce"
+                        " JOIN document_chunks dc ON dc.id=ce.chunk_id"
+                        " JOIN source_documents sd ON sd.id=dc.doc_id"
+                        " JOIN filings f ON f.id=sd.filing_id"
+                        " WHERE f.filing_key=:filing_key LIMIT 1"
+                    ),
+                    {"filing_key": filing_key},
+                ).fetchone()
+            )
+
+    def known_section_types(self) -> list[str]:
         with self.store.conn() as conn:
             rows = conn.execute(
                 text(
-                    "SELECT dc.id, dc.page_number, ds.section_type, ds.title AS section_title,"
-                    " dc.content, dc.importance_score FROM document_chunks dc"
-                    " JOIN source_documents sd ON sd.id=dc.doc_id"
-                    " JOIN filings f ON f.id=sd.filing_id"
-                    " LEFT JOIN document_sections ds ON ds.id=dc.section_id"
-                    " WHERE f.filing_key=:filing_key"
-                    " ORDER BY dc.importance_score DESC, dc.id LIMIT :limit"
-                ),
-                {"filing_key": filing_key, "limit": limit},
+                    "SELECT DISTINCT section_type FROM document_sections"
+                    " WHERE section_type IS NOT NULL ORDER BY section_type"
+                )
             ).fetchall()
-        return _dicts(rows)
+        return [row[0] for row in rows]
 
     @staticmethod
     def _json(value: str | None, default: Any) -> Any:

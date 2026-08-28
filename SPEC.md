@@ -499,15 +499,23 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 
 ---
 
-### 4.9 `chunk_embeddings` — 向量嵌入（選用）
+### 4.9 `chunk_embeddings` — chunk 向量
+
+由 `fr embed` 離線產生（需 `uv sync --extra vector`）。維度須與
+`src/agent/embedding.py` 的 `EMBEDDING_DIM` 一致，encode 時會斷言檢查。
 
 ```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE IF NOT EXISTS chunk_embeddings (
-    chunk_id   INTEGER PRIMARY KEY REFERENCES document_chunks(id),
-    model_name TEXT    NOT NULL,     -- 例如 "text-embedding-ada-002"
-    embedding  BLOB    NOT NULL,     -- 二進位 float32 陣列
-    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+    chunk_id   INTEGER PRIMARY KEY REFERENCES document_chunks(id) ON DELETE CASCADE,
+    model_name TEXT         NOT NULL,     -- 例如 "BAAI/bge-base-zh-v1.5"
+    embedding  VECTOR(768)  NOT NULL,     -- L2 normalised
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+
+CREATE INDEX idx_chunk_embeddings_hnsw
+    ON chunk_embeddings USING hnsw (embedding vector_cosine_ops);
 ```
 
 > 目前為佔位表，向量搜尋功能尚未整合。
@@ -1181,8 +1189,7 @@ FinancialReports/
 │   ├── storage/
 │   │   ├── schema.sql                # 17 張表的完整 DDL
 │   │   ├── store.py                  # SQLAlchemy Core wrapper
-│   │   ├── json_exporter.py          # JSON 匯出
-│   │   └── vector_store.py           # 向量儲存（佔位）
+│   │   └── json_exporter.py          # JSON 匯出
 │   ├── analytics/
 │   │   ├── metrics.py                # 財務指標計算（純函數）
 │   │   ├── comparisons.py            # YoY/QoQ 比較

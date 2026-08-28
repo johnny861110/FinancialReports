@@ -247,8 +247,31 @@ class FilingEnvelope(ContractModel):
     pipeline_state: list[PipelineRun]
 
 
+class EvidenceChunk(ContractModel):
+    """One citable excerpt of filing text.
+
+    Carries what a consumer needs in order to cite it: a stable id, the source
+    document with its checksum and public URL, and the position within it. The
+    document's local filesystem path is deliberately never exposed.
+    """
+
+    chunk_id: int
+    doc_id: int
+    page_number: int | None = None
+    section_type: str | None = None
+    section_title: str | None = None
+    content: str
+    truncated: bool = False
+    checksum: str | None = None
+    source_url: str | None = None
+    importance_score: float | None = None
+    # Cosine similarity to the question when one was given and the filing has
+    # embeddings; None means the chunk was selected by importance instead.
+    retrieval_score: float | None = None
+
+
 class ContextEnvelope(FilingEnvelope):
-    evidence_chunks: list[dict[str, Any]] = Field(default_factory=list)
+    evidence_chunks: list[EvidenceChunk] = Field(default_factory=list)
 
 
 class StockSummary(ContractModel):

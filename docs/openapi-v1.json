@@ -1,87 +1,723 @@
 {
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FinancialReports API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health/live": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health Live",
+        "operationId": "health_live_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health Ready",
+        "operationId": "health_ready_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/capabilities": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Capabilities",
+        "operationId": "capabilities_v1_capabilities_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilitiesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/schema": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Schema Discovery",
+        "operationId": "schema_discovery_v1_schema_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Schema Discovery V1 Schema Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stocks": {
+      "get": {
+        "tags": [
+          "filings"
+        ],
+        "summary": "List Stocks",
+        "operationId": "list_stocks_v1_stocks_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Query"
+            }
+          },
+          {
+            "name": "industry",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Industry"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StocksResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stocks/{stock_code}/periods": {
+      "get": {
+        "tags": [
+          "filings"
+        ],
+        "summary": "List Periods",
+        "operationId": "list_periods_v1_stocks__stock_code__periods_get",
+        "parameters": [
+          {
+            "name": "stock_code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Stock Code"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeriodsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/filings/{stock_code}/{period}/snapshot": {
+      "get": {
+        "tags": [
+          "filings"
+        ],
+        "summary": "Snapshot",
+        "operationId": "snapshot_v1_filings__stock_code___period__snapshot_get",
+        "parameters": [
+          {
+            "name": "stock_code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Stock Code"
+            }
+          },
+          {
+            "name": "period",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Period"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fields"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilingEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/filings/{stock_code}/{period}/context": {
+      "get": {
+        "tags": [
+          "filings"
+        ],
+        "summary": "Context",
+        "operationId": "context_v1_filings__stock_code___period__context_get",
+        "parameters": [
+          {
+            "name": "stock_code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Stock Code"
+            }
+          },
+          {
+            "name": "period",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Period"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fields"
+            }
+          },
+          {
+            "name": "evidence_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 0,
+              "default": 10,
+              "title": "Evidence Limit"
+            }
+          },
+          {
+            "name": "question",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Question"
+            }
+          },
+          {
+            "name": "sections",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sections"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/filings/{stock_code}/{period}/refresh": {
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Refresh",
+        "operationId": "refresh_v1_filings__stock_code___period__refresh_post",
+        "parameters": [
+          {
+            "name": "stock_code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Stock Code"
+            }
+          },
+          {
+            "name": "period",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Period"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Get Job",
+        "operationId": "get_job_v1_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/batch/filings/query": {
+      "post": {
+        "tags": [
+          "batch"
+        ],
+        "summary": "Batch Query",
+        "operationId": "batch_query_v1_batch_filings_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchQueryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "components": {
     "schemas": {
       "BatchQueryItem": {
-        "additionalProperties": false,
         "properties": {
+          "stock_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{1,12}$",
+            "title": "Stock Code"
+          },
+          "period": {
+            "type": "string",
+            "pattern": "^\\d{4}Q[1-4]$",
+            "title": "Period"
+          },
           "fields": {
             "anyOf": [
               {
                 "items": {
                   "type": "string"
                 },
-                "maxItems": 40,
-                "type": "array"
+                "type": "array",
+                "maxItems": 40
               },
               {
                 "type": "null"
               }
             ],
             "title": "Fields"
-          },
-          "period": {
-            "pattern": "^\\d{4}Q[1-4]$",
-            "title": "Period",
-            "type": "string"
-          },
-          "stock_code": {
-            "pattern": "^[A-Za-z0-9]{1,12}$",
-            "title": "Stock Code",
-            "type": "string"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "stock_code",
           "period"
         ],
-        "title": "BatchQueryItem",
-        "type": "object"
+        "title": "BatchQueryItem"
       },
       "BatchQueryRequest": {
-        "additionalProperties": false,
         "properties": {
           "items": {
             "items": {
               "$ref": "#/components/schemas/BatchQueryItem"
             },
+            "type": "array",
             "maxItems": 100,
             "minItems": 1,
-            "title": "Items",
-            "type": "array"
+            "title": "Items"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "items"
         ],
-        "title": "BatchQueryRequest",
-        "type": "object"
+        "title": "BatchQueryRequest"
       },
       "BatchQueryResponse": {
-        "additionalProperties": false,
         "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/BatchResult"
             },
-            "title": "Items",
-            "type": "array"
-          },
-          "schema_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
-            "title": "Schema Version",
-            "type": "string"
+            "type": "array",
+            "title": "Items"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "items"
         ],
-        "title": "BatchQueryResponse",
-        "type": "object"
+        "title": "BatchQueryResponse"
       },
       "BatchResult": {
-        "additionalProperties": false,
         "properties": {
+          "identity": {
+            "$ref": "#/components/schemas/Identity"
+          },
           "data": {
             "anyOf": [
               {
@@ -101,68 +737,67 @@
                 "type": "null"
               }
             ]
-          },
-          "identity": {
-            "$ref": "#/components/schemas/Identity"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "identity"
         ],
-        "title": "BatchResult",
-        "type": "object"
+        "title": "BatchResult"
       },
       "CapabilitiesResponse": {
-        "additionalProperties": false,
         "properties": {
-          "api_version": {
-            "const": "v1",
-            "default": "v1",
-            "title": "Api Version",
-            "type": "string"
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
           },
-          "data_states": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Data States",
-            "type": "object"
+          "api_version": {
+            "type": "string",
+            "const": "v1",
+            "title": "Api Version",
+            "default": "v1"
           },
           "endpoints": {
             "items": {
               "type": "string"
             },
-            "title": "Endpoints",
-            "type": "array"
-          },
-          "fields": {
-            "items": {
-              "$ref": "#/components/schemas/FieldDefinition"
-            },
-            "title": "Fields",
-            "type": "array"
+            "type": "array",
+            "title": "Endpoints"
           },
           "limits": {
             "additionalProperties": {
               "type": "integer"
             },
-            "title": "Limits",
-            "type": "object"
-          },
-          "schema_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
-            "title": "Schema Version",
-            "type": "string"
+            "type": "object",
+            "title": "Limits"
           },
           "units": {
             "additionalProperties": {
               "type": "string"
             },
-            "title": "Units",
-            "type": "object"
+            "type": "object",
+            "title": "Units"
+          },
+          "data_states": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Data States"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldDefinition"
+            },
+            "type": "array",
+            "title": "Fields"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "endpoints",
           "limits",
@@ -170,12 +805,41 @@
           "data_states",
           "fields"
         ],
-        "title": "CapabilitiesResponse",
-        "type": "object"
+        "title": "CapabilitiesResponse"
       },
       "Comparison": {
-        "additionalProperties": false,
         "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "compare_type": {
+            "type": "string",
+            "enum": [
+              "yoy",
+              "qoq"
+            ],
+            "title": "Compare Type"
+          },
+          "compare_period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare Period"
+          },
+          "current_value": {
+            "type": "number",
+            "title": "Current Value"
+          },
+          "prior_value": {
+            "type": "number",
+            "title": "Prior Value"
+          },
           "change_abs": {
             "anyOf": [
               {
@@ -196,41 +860,18 @@
                 "type": "null"
               }
             ],
-            "description": "100-scaled percent",
-            "title": "Change Pct"
-          },
-          "compare_period": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Compare Period"
-          },
-          "compare_type": {
-            "enum": [
-              "yoy",
-              "qoq"
-            ],
-            "title": "Compare Type",
-            "type": "string"
-          },
-          "current_value": {
-            "title": "Current Value",
-            "type": "number"
+            "title": "Change Pct",
+            "description": "100-scaled percent"
           },
           "direction": {
             "anyOf": [
               {
+                "type": "string",
                 "enum": [
                   "up",
                   "down",
                   "flat"
-                ],
-                "type": "string"
+                ]
               },
               {
                 "type": "null"
@@ -238,9 +879,21 @@
             ],
             "title": "Direction"
           },
-          "field": {
-            "title": "Field",
-            "type": "string"
+          "significance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "large",
+                  "moderate",
+                  "small"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Significance"
           },
           "interpretation": {
             "anyOf": [
@@ -252,149 +905,130 @@
               }
             ],
             "title": "Interpretation"
-          },
-          "prior_value": {
-            "title": "Prior Value",
-            "type": "number"
-          },
-          "significance": {
-            "anyOf": [
-              {
-                "enum": [
-                  "large",
-                  "moderate",
-                  "small"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Significance"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "field",
           "compare_type",
           "current_value",
           "prior_value"
         ],
-        "title": "Comparison",
-        "type": "object"
+        "title": "Comparison"
       },
       "ContextEnvelope": {
-        "additionalProperties": false,
         "properties": {
-          "comparisons": {
-            "items": {
-              "$ref": "#/components/schemas/Comparison"
-            },
-            "title": "Comparisons",
-            "type": "array"
-          },
-          "events": {
-            "items": {
-              "$ref": "#/components/schemas/Event"
-            },
-            "title": "Events",
-            "type": "array"
-          },
-          "evidence": {
-            "items": {
-              "$ref": "#/components/schemas/Evidence"
-            },
-            "title": "Evidence",
-            "type": "array"
-          },
-          "evidence_chunks": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Evidence Chunks",
-            "type": "array"
-          },
-          "facts": {
-            "items": {
-              "$ref": "#/components/schemas/Fact"
-            },
-            "title": "Facts",
-            "type": "array"
-          },
-          "field_availability": {
-            "items": {
-              "$ref": "#/components/schemas/FieldAvailability"
-            },
-            "title": "Field Availability",
-            "type": "array"
-          },
-          "freshness": {
-            "$ref": "#/components/schemas/Freshness"
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
           },
           "identity": {
             "$ref": "#/components/schemas/Identity"
           },
-          "insight_cards": {
-            "items": {
-              "$ref": "#/components/schemas/InsightCard"
-            },
-            "title": "Insight Cards",
-            "type": "array"
+          "status": {
+            "$ref": "#/components/schemas/ReadinessStatus"
+          },
+          "pipeline_status": {
+            "$ref": "#/components/schemas/FilingStatus"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotValues"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metrics",
+            "description": "Backward-compatible metric name to value/metadata mapping"
           },
           "metric_records": {
             "items": {
               "$ref": "#/components/schemas/Metric"
             },
-            "title": "Metric Records",
-            "type": "array"
+            "type": "array",
+            "title": "Metric Records"
           },
-          "metrics": {
-            "additionalProperties": true,
-            "description": "Backward-compatible metric name to value/metadata mapping",
-            "title": "Metrics",
-            "type": "object"
-          },
-          "pipeline_state": {
+          "events": {
             "items": {
-              "$ref": "#/components/schemas/PipelineRun"
+              "$ref": "#/components/schemas/Event"
             },
-            "title": "Pipeline State",
-            "type": "array"
+            "type": "array",
+            "title": "Events"
           },
-          "pipeline_status": {
-            "$ref": "#/components/schemas/FilingStatus"
-          },
-          "quality": {
-            "$ref": "#/components/schemas/Quality"
-          },
-          "schema_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
-            "title": "Schema Version",
-            "type": "string"
-          },
-          "snapshot": {
-            "$ref": "#/components/schemas/SnapshotValues"
-          },
-          "source_documents": {
+          "evidence": {
             "items": {
-              "$ref": "#/components/schemas/SourceDocument"
+              "$ref": "#/components/schemas/Evidence"
             },
-            "title": "Source Documents",
-            "type": "array"
+            "type": "array",
+            "title": "Evidence"
           },
-          "status": {
-            "$ref": "#/components/schemas/ReadinessStatus"
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/Fact"
+            },
+            "type": "array",
+            "title": "Facts"
+          },
+          "field_availability": {
+            "items": {
+              "$ref": "#/components/schemas/FieldAvailability"
+            },
+            "type": "array",
+            "title": "Field Availability"
           },
           "validation": {
             "items": {
               "$ref": "#/components/schemas/ValidationResult"
             },
-            "title": "Validation",
-            "type": "array"
+            "type": "array",
+            "title": "Validation"
+          },
+          "comparisons": {
+            "items": {
+              "$ref": "#/components/schemas/Comparison"
+            },
+            "type": "array",
+            "title": "Comparisons"
+          },
+          "insight_cards": {
+            "items": {
+              "$ref": "#/components/schemas/InsightCard"
+            },
+            "type": "array",
+            "title": "Insight Cards"
+          },
+          "source_documents": {
+            "items": {
+              "$ref": "#/components/schemas/SourceDocument"
+            },
+            "type": "array",
+            "title": "Source Documents"
+          },
+          "pipeline_state": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineRun"
+            },
+            "type": "array",
+            "title": "Pipeline State"
+          },
+          "evidence_chunks": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceChunk"
+            },
+            "type": "array",
+            "title": "Evidence Chunks"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "identity",
           "status",
@@ -414,10 +1048,10 @@
           "source_documents",
           "pipeline_state"
         ],
-        "title": "ContextEnvelope",
-        "type": "object"
+        "title": "ContextEnvelope"
       },
       "DataState": {
+        "type": "string",
         "enum": [
           "present",
           "missing",
@@ -425,93 +1059,74 @@
           "not_applicable",
           "provider_failure"
         ],
-        "title": "DataState",
-        "type": "string"
+        "title": "DataState"
       },
       "ErrorDetail": {
-        "additionalProperties": false,
         "properties": {
           "code": {
-            "title": "Code",
-            "type": "string"
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
           },
           "data_state": {
             "$ref": "#/components/schemas/DataState"
           },
+          "retryable": {
+            "type": "boolean",
+            "title": "Retryable",
+            "default": false
+          },
           "details": {
             "additionalProperties": true,
-            "title": "Details",
-            "type": "object"
-          },
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "retryable": {
-            "default": false,
-            "title": "Retryable",
-            "type": "boolean"
+            "type": "object",
+            "title": "Details"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "code",
           "message",
           "data_state"
         ],
-        "title": "ErrorDetail",
-        "type": "object"
+        "title": "ErrorDetail"
       },
       "ErrorResponse": {
-        "additionalProperties": false,
         "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
+          },
           "error": {
             "$ref": "#/components/schemas/ErrorDetail"
-          },
-          "schema_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
-            "title": "Schema Version",
-            "type": "string"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "error"
         ],
-        "title": "ErrorResponse",
-        "type": "object"
+        "title": "ErrorResponse"
       },
       "Event": {
-        "additionalProperties": false,
         "properties": {
-          "confidence": {
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Confidence",
-            "type": "number"
-          },
-          "description": {
-            "title": "Description",
-            "type": "string"
-          },
           "event_type": {
-            "title": "Event Type",
-            "type": "string"
-          },
-          "related_fields": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Related Fields",
-            "type": "array"
+            "type": "string",
+            "title": "Event Type"
           },
           "severity": {
+            "type": "string",
             "enum": [
               "error",
               "warning",
               "info"
             ],
-            "title": "Severity",
-            "type": "string"
+            "title": "Severity"
           },
           "title": {
             "anyOf": [
@@ -523,77 +1138,37 @@
               }
             ],
             "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "related_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Related Fields"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "event_type",
           "severity",
           "description",
           "confidence"
         ],
-        "title": "Event",
-        "type": "object"
+        "title": "Event"
       },
       "Evidence": {
-        "additionalProperties": false,
         "properties": {
-          "checksum": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Checksum"
-          },
-          "confidence": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence"
-          },
-          "doc_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Doc Id"
-          },
-          "excerpt": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Excerpt"
-          },
-          "extraction_method": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Extraction Method"
-          },
           "fact_id": {
             "anyOf": [
               {
@@ -616,6 +1191,32 @@
             ],
             "title": "Field"
           },
+          "source_document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Document Id"
+          },
+          "doc_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Id"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
           "page_number": {
             "anyOf": [
               {
@@ -626,17 +1227,6 @@
               }
             ],
             "title": "Page Number"
-          },
-          "raw_text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Raw Text"
           },
           "section_title": {
             "anyOf": [
@@ -649,20 +1239,51 @@
             ],
             "title": "Section Title"
           },
-          "source_document_id": {
+          "raw_text": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Source Document Id"
+            "title": "Raw Text"
           },
-          "source_type": {
-            "title": "Source Type",
-            "type": "string"
+          "excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excerpt"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "extraction_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extraction Method"
           },
           "source_url": {
             "anyOf": [
@@ -674,39 +1295,8 @@
               }
             ],
             "title": "Source Url"
-          }
-        },
-        "required": [
-          "source_type"
-        ],
-        "title": "Evidence",
-        "type": "object"
-      },
-      "Fact": {
-        "additionalProperties": false,
-        "properties": {
-          "confidence": {
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Confidence",
-            "type": "number"
           },
-          "evidence": {
-            "items": {
-              "$ref": "#/components/schemas/Evidence"
-            },
-            "title": "Evidence",
-            "type": "array"
-          },
-          "field": {
-            "title": "Field",
-            "type": "string"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "period_end": {
+          "checksum": {
             "anyOf": [
               {
                 "type": "string"
@@ -715,7 +1305,144 @@
                 "type": "null"
               }
             ],
-            "title": "Period End"
+            "title": "Checksum"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_type"
+        ],
+        "title": "Evidence"
+      },
+      "EvidenceChunk": {
+        "properties": {
+          "chunk_id": {
+            "type": "integer",
+            "title": "Chunk Id"
+          },
+          "doc_id": {
+            "type": "integer",
+            "title": "Doc Id"
+          },
+          "page_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Number"
+          },
+          "section_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Type"
+          },
+          "section_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Title"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          },
+          "checksum": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checksum"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "importance_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Importance Score"
+          },
+          "retrieval_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieval Score"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "chunk_id",
+          "doc_id",
+          "content"
+        ],
+        "title": "EvidenceChunk",
+        "description": "One citable excerpt of filing text.\n\nCarries what a consumer needs in order to cite it: a stable id, the source\ndocument with its checksum and public URL, and the position within it. The\ndocument's local filesystem path is deliberately never exposed."
+      },
+      "Fact": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "statement": {
+            "type": "string",
+            "title": "Statement"
           },
           "period_start": {
             "anyOf": [
@@ -728,23 +1455,28 @@
             ],
             "title": "Period Start"
           },
+          "period_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period End"
+          },
           "period_type": {
             "$ref": "#/components/schemas/PeriodType"
           },
           "source_type": {
             "$ref": "#/components/schemas/SourceType"
           },
-          "statement": {
-            "title": "Statement",
-            "type": "string"
-          },
-          "unit": {
-            "title": "Unit",
-            "type": "string"
-          },
-          "value": {
-            "title": "Value",
-            "type": "number"
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
           },
           "xbrl_tag": {
             "anyOf": [
@@ -756,8 +1488,17 @@
               }
             ],
             "title": "Xbrl Tag"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "array",
+            "title": "Evidence"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "id",
           "field",
@@ -768,15 +1509,24 @@
           "source_type",
           "confidence"
         ],
-        "title": "Fact",
-        "type": "object"
+        "title": "Fact"
       },
       "FieldAvailability": {
-        "additionalProperties": false,
         "properties": {
           "field": {
-            "title": "Field",
-            "type": "string"
+            "type": "string",
+            "title": "Field"
+          },
+          "statement": {
+            "type": "string",
+            "title": "Statement"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "state": {
+            "$ref": "#/components/schemas/DataState"
           },
           "reason": {
             "anyOf": [
@@ -788,58 +1538,49 @@
               }
             ],
             "title": "Reason"
-          },
-          "state": {
-            "$ref": "#/components/schemas/DataState"
-          },
-          "statement": {
-            "title": "Statement",
-            "type": "string"
-          },
-          "unit": {
-            "title": "Unit",
-            "type": "string"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "field",
           "statement",
           "unit",
           "state"
         ],
-        "title": "FieldAvailability",
-        "type": "object"
+        "title": "FieldAvailability"
       },
       "FieldDefinition": {
-        "additionalProperties": false,
         "properties": {
-          "label_zh": {
-            "title": "Label Zh",
-            "type": "string"
-          },
           "name": {
-            "title": "Name",
-            "type": "string"
+            "type": "string",
+            "title": "Name"
+          },
+          "statement": {
+            "type": "string",
+            "title": "Statement"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "label_zh": {
+            "type": "string",
+            "title": "Label Zh"
           },
           "period_type": {
             "$ref": "#/components/schemas/PeriodType"
-          },
-          "statement": {
-            "title": "Statement",
-            "type": "string"
-          },
-          "unit": {
-            "title": "Unit",
-            "type": "string"
           },
           "xbrl_tags": {
             "items": {
               "type": "string"
             },
-            "title": "Xbrl Tags",
-            "type": "array"
+            "type": "array",
+            "title": "Xbrl Tags"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "name",
           "statement",
@@ -848,113 +1589,113 @@
           "period_type",
           "xbrl_tags"
         ],
-        "title": "FieldDefinition",
-        "type": "object"
+        "title": "FieldDefinition"
       },
       "FilingEnvelope": {
-        "additionalProperties": false,
         "properties": {
-          "comparisons": {
-            "items": {
-              "$ref": "#/components/schemas/Comparison"
-            },
-            "title": "Comparisons",
-            "type": "array"
-          },
-          "events": {
-            "items": {
-              "$ref": "#/components/schemas/Event"
-            },
-            "title": "Events",
-            "type": "array"
-          },
-          "evidence": {
-            "items": {
-              "$ref": "#/components/schemas/Evidence"
-            },
-            "title": "Evidence",
-            "type": "array"
-          },
-          "facts": {
-            "items": {
-              "$ref": "#/components/schemas/Fact"
-            },
-            "title": "Facts",
-            "type": "array"
-          },
-          "field_availability": {
-            "items": {
-              "$ref": "#/components/schemas/FieldAvailability"
-            },
-            "title": "Field Availability",
-            "type": "array"
-          },
-          "freshness": {
-            "$ref": "#/components/schemas/Freshness"
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
           },
           "identity": {
             "$ref": "#/components/schemas/Identity"
           },
-          "insight_cards": {
-            "items": {
-              "$ref": "#/components/schemas/InsightCard"
-            },
-            "title": "Insight Cards",
-            "type": "array"
+          "status": {
+            "$ref": "#/components/schemas/ReadinessStatus"
+          },
+          "pipeline_status": {
+            "$ref": "#/components/schemas/FilingStatus"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotValues"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metrics",
+            "description": "Backward-compatible metric name to value/metadata mapping"
           },
           "metric_records": {
             "items": {
               "$ref": "#/components/schemas/Metric"
             },
-            "title": "Metric Records",
-            "type": "array"
+            "type": "array",
+            "title": "Metric Records"
           },
-          "metrics": {
-            "additionalProperties": true,
-            "description": "Backward-compatible metric name to value/metadata mapping",
-            "title": "Metrics",
-            "type": "object"
-          },
-          "pipeline_state": {
+          "events": {
             "items": {
-              "$ref": "#/components/schemas/PipelineRun"
+              "$ref": "#/components/schemas/Event"
             },
-            "title": "Pipeline State",
-            "type": "array"
+            "type": "array",
+            "title": "Events"
           },
-          "pipeline_status": {
-            "$ref": "#/components/schemas/FilingStatus"
-          },
-          "quality": {
-            "$ref": "#/components/schemas/Quality"
-          },
-          "schema_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
-            "title": "Schema Version",
-            "type": "string"
-          },
-          "snapshot": {
-            "$ref": "#/components/schemas/SnapshotValues"
-          },
-          "source_documents": {
+          "evidence": {
             "items": {
-              "$ref": "#/components/schemas/SourceDocument"
+              "$ref": "#/components/schemas/Evidence"
             },
-            "title": "Source Documents",
-            "type": "array"
+            "type": "array",
+            "title": "Evidence"
           },
-          "status": {
-            "$ref": "#/components/schemas/ReadinessStatus"
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/Fact"
+            },
+            "type": "array",
+            "title": "Facts"
+          },
+          "field_availability": {
+            "items": {
+              "$ref": "#/components/schemas/FieldAvailability"
+            },
+            "type": "array",
+            "title": "Field Availability"
           },
           "validation": {
             "items": {
               "$ref": "#/components/schemas/ValidationResult"
             },
-            "title": "Validation",
-            "type": "array"
+            "type": "array",
+            "title": "Validation"
+          },
+          "comparisons": {
+            "items": {
+              "$ref": "#/components/schemas/Comparison"
+            },
+            "type": "array",
+            "title": "Comparisons"
+          },
+          "insight_cards": {
+            "items": {
+              "$ref": "#/components/schemas/InsightCard"
+            },
+            "type": "array",
+            "title": "Insight Cards"
+          },
+          "source_documents": {
+            "items": {
+              "$ref": "#/components/schemas/SourceDocument"
+            },
+            "type": "array",
+            "title": "Source Documents"
+          },
+          "pipeline_state": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineRun"
+            },
+            "type": "array",
+            "title": "Pipeline State"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "identity",
           "status",
@@ -974,10 +1715,10 @@
           "source_documents",
           "pipeline_state"
         ],
-        "title": "FilingEnvelope",
-        "type": "object"
+        "title": "FilingEnvelope"
       },
       "FilingStatus": {
+        "type": "string",
         "enum": [
           "pending",
           "ingested",
@@ -986,21 +1727,40 @@
           "insight_ready",
           "failed"
         ],
-        "title": "FilingStatus",
-        "type": "string"
+        "title": "FilingStatus"
       },
       "Freshness": {
-        "additionalProperties": false,
         "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "current",
+              "stale",
+              "unknown"
+            ],
+            "title": "State"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "is_stale": {
-            "title": "Is Stale",
-            "type": "boolean"
+            "type": "boolean",
+            "title": "Is Stale"
           },
           "latest_source_at": {
             "anyOf": [
               {
-                "format": "date-time",
-                "type": "string"
+                "type": "string",
+                "format": "date-time"
               },
               {
                 "type": "null"
@@ -1009,38 +1769,18 @@
             "title": "Latest Source At"
           },
           "stale_after_seconds": {
-            "default": 86400,
+            "type": "integer",
             "title": "Stale After Seconds",
-            "type": "integer"
-          },
-          "state": {
-            "enum": [
-              "current",
-              "stale",
-              "unknown"
-            ],
-            "title": "State",
-            "type": "string"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
+            "default": 86400
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "state",
           "is_stale"
         ],
-        "title": "Freshness",
-        "type": "object"
+        "title": "Freshness"
       },
       "HTTPValidationError": {
         "properties": {
@@ -1048,55 +1788,56 @@
             "items": {
               "$ref": "#/components/schemas/ValidationError"
             },
-            "title": "Detail",
-            "type": "array"
+            "type": "array",
+            "title": "Detail"
           }
         },
-        "title": "HTTPValidationError",
-        "type": "object"
+        "type": "object",
+        "title": "HTTPValidationError"
       },
       "HealthResponse": {
-        "additionalProperties": false,
         "properties": {
-          "schema_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
-            "title": "Schema Version",
-            "type": "string"
-          },
           "status": {
+            "type": "string",
             "enum": [
               "ok",
               "ready",
               "not_ready"
             ],
-            "title": "Status",
-            "type": "string"
+            "title": "Status"
+          },
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "status"
         ],
-        "title": "HealthResponse",
-        "type": "object"
+        "title": "HealthResponse"
       },
       "Identity": {
-        "additionalProperties": false,
         "properties": {
-          "company_name": {
-            "title": "Company Name",
-            "type": "string"
+          "stock_code": {
+            "type": "string",
+            "title": "Stock Code"
           },
-          "company_name_en": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Company Name En"
+          "period": {
+            "type": "string",
+            "pattern": "^\\d{4}Q[1-4]$",
+            "title": "Period"
+          },
+          "filing_key": {
+            "type": "string",
+            "title": "Filing Key"
+          },
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
           },
           "company_name_zh": {
             "anyOf": [
@@ -1109,9 +1850,16 @@
             ],
             "title": "Company Name Zh"
           },
-          "filing_key": {
-            "title": "Filing Key",
-            "type": "string"
+          "company_name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name En"
           },
           "industry": {
             "anyOf": [
@@ -1134,69 +1882,50 @@
               }
             ],
             "title": "Market"
-          },
-          "period": {
-            "pattern": "^\\d{4}Q[1-4]$",
-            "title": "Period",
-            "type": "string"
-          },
-          "stock_code": {
-            "title": "Stock Code",
-            "type": "string"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "stock_code",
           "period",
           "filing_key",
           "company_name"
         ],
-        "title": "Identity",
-        "type": "object"
+        "title": "Identity"
       },
       "InsightCard": {
-        "additionalProperties": false,
         "properties": {
-          "card_type": {
-            "title": "Card Type",
-            "type": "string"
+          "id": {
+            "type": "integer",
+            "title": "Id"
           },
-          "confidence": {
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Confidence",
-            "type": "number"
+          "card_type": {
+            "type": "string",
+            "title": "Card Type"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
           },
           "data_points": {
             "additionalProperties": true,
-            "title": "Data Points",
-            "type": "object"
-          },
-          "generated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Generated At"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
+            "type": "object",
+            "title": "Data Points"
           },
           "sentiment": {
             "anyOf": [
               {
+                "type": "string",
                 "enum": [
                   "positive",
                   "negative",
                   "neutral"
-                ],
-                "type": "string"
+                ]
               },
               {
                 "type": "null"
@@ -1204,15 +1933,27 @@
             ],
             "title": "Sentiment"
           },
-          "summary": {
-            "title": "Summary",
-            "type": "string"
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
           },
-          "title": {
-            "title": "Title",
-            "type": "string"
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "id",
           "card_type",
@@ -1220,44 +1961,35 @@
           "summary",
           "confidence"
         ],
-        "title": "InsightCard",
-        "type": "object"
+        "title": "InsightCard"
       },
       "JobResponse": {
-        "additionalProperties": false,
         "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
           "created_at": {
+            "type": "string",
             "format": "date-time",
-            "title": "Created At",
-            "type": "string"
+            "title": "Created At"
           },
-          "data_state": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DataState"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
           },
           "identity": {
             "$ref": "#/components/schemas/Identity"
-          },
-          "job_id": {
-            "title": "Job Id",
-            "type": "string"
           },
           "result": {
             "anyOf": [
@@ -1271,21 +2003,30 @@
             ],
             "title": "Result"
           },
-          "schema_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
-            "title": "Schema Version",
-            "type": "string"
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
           },
-          "status": {
-            "$ref": "#/components/schemas/JobStatus"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
+          "data_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "job_id",
           "status",
@@ -1293,27 +2034,32 @@
           "updated_at",
           "identity"
         ],
-        "title": "JobResponse",
-        "type": "object"
+        "title": "JobResponse"
       },
       "JobStatus": {
+        "type": "string",
         "enum": [
           "queued",
           "running",
           "succeeded",
           "failed"
         ],
-        "title": "JobStatus",
-        "type": "string"
+        "title": "JobStatus"
       },
       "Metric": {
-        "additionalProperties": false,
         "properties": {
-          "confidence": {
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Confidence",
-            "type": "number"
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "description": "ratio is decimal-scaled; percent is 100-scaled"
           },
           "formula": {
             "anyOf": [
@@ -1328,72 +2074,68 @@
           },
           "inputs": {
             "additionalProperties": true,
-            "title": "Inputs",
-            "type": "object"
+            "type": "object",
+            "title": "Inputs"
           },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "unit": {
-            "description": "ratio is decimal-scaled; percent is 100-scaled",
-            "title": "Unit",
-            "type": "string"
-          },
-          "value": {
-            "title": "Value",
-            "type": "number"
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "name",
           "value",
           "unit",
           "confidence"
         ],
-        "title": "Metric",
-        "type": "object"
+        "title": "Metric"
       },
       "Pagination": {
-        "additionalProperties": false,
         "properties": {
           "limit": {
+            "type": "integer",
             "minimum": 1.0,
-            "title": "Limit",
-            "type": "integer"
+            "title": "Limit"
           },
           "offset": {
+            "type": "integer",
             "minimum": 0.0,
-            "title": "Offset",
-            "type": "integer"
+            "title": "Offset"
           },
           "total": {
+            "type": "integer",
             "minimum": 0.0,
-            "title": "Total",
-            "type": "integer"
+            "title": "Total"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "limit",
           "offset",
           "total"
         ],
-        "title": "Pagination",
-        "type": "object"
+        "title": "Pagination"
       },
       "PeriodSummary": {
-        "additionalProperties": false,
         "properties": {
           "period": {
-            "title": "Period",
-            "type": "string"
+            "type": "string",
+            "title": "Period"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FilingStatus"
           },
           "quality_score": {
             "anyOf": [
               {
+                "type": "number",
                 "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -1401,75 +2143,103 @@
             ],
             "title": "Quality Score"
           },
-          "status": {
-            "$ref": "#/components/schemas/FilingStatus"
-          },
           "updated_at": {
+            "type": "string",
             "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
+            "title": "Updated At"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "period",
           "status",
           "updated_at"
         ],
-        "title": "PeriodSummary",
-        "type": "object"
+        "title": "PeriodSummary"
       },
       "PeriodType": {
+        "type": "string",
         "enum": [
           "duration",
           "instant"
         ],
-        "title": "PeriodType",
-        "type": "string"
+        "title": "PeriodType"
       },
       "PeriodsResponse": {
-        "additionalProperties": false,
         "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
+          },
+          "stock_code": {
+            "type": "string",
+            "title": "Stock Code"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/PeriodSummary"
             },
-            "title": "Items",
-            "type": "array"
-          },
-          "pagination": {
-            "$ref": "#/components/schemas/Pagination"
+            "type": "array",
+            "title": "Items"
           },
           "periods": {
-            "description": "Compatibility list of YYYYQn periods",
             "items": {
               "type": "string"
             },
+            "type": "array",
             "title": "Periods",
-            "type": "array"
+            "description": "Compatibility list of YYYYQn periods"
           },
-          "schema_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
-            "title": "Schema Version",
-            "type": "string"
-          },
-          "stock_code": {
-            "title": "Stock Code",
-            "type": "string"
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "stock_code",
           "items",
           "periods",
           "pagination"
         ],
-        "title": "PeriodsResponse",
-        "type": "object"
+        "title": "PeriodsResponse"
       },
       "PipelineRun": {
-        "additionalProperties": false,
         "properties": {
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "started",
+              "completed",
+              "failed",
+              "skipped"
+            ],
+            "title": "Status"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
           "error_message": {
             "anyOf": [
               {
@@ -1480,63 +2250,25 @@
               }
             ],
             "title": "Error Message"
-          },
-          "finished_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finished At"
-          },
-          "stage": {
-            "title": "Stage",
-            "type": "string"
-          },
-          "started_at": {
-            "format": "date-time",
-            "title": "Started At",
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "started",
-              "completed",
-              "failed",
-              "skipped"
-            ],
-            "title": "Status",
-            "type": "string"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "stage",
           "status",
           "started_at"
         ],
-        "title": "PipelineRun",
-        "type": "object"
+        "title": "PipelineRun"
       },
       "Quality": {
-        "additionalProperties": false,
         "properties": {
-          "missing_fields": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Missing Fields",
-            "type": "array"
-          },
           "score": {
             "anyOf": [
               {
+                "type": "number",
                 "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -1547,86 +2279,93 @@
           "state": {
             "$ref": "#/components/schemas/DataState"
           },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Fields"
+          },
+          "validation_failures": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationFailure"
+            },
+            "type": "array",
+            "title": "Validation Failures"
+          },
+          "validation_total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Validation Total"
+          },
+          "validation_failed": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Validation Failed"
+          },
           "structured_source_coverage": {
             "anyOf": [
               {
+                "type": "number",
                 "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
+                "minimum": 0.0
               },
               {
                 "type": "null"
               }
             ],
             "title": "Structured Source Coverage"
-          },
-          "validation_failed": {
-            "minimum": 0.0,
-            "title": "Validation Failed",
-            "type": "integer"
-          },
-          "validation_failures": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationFailure"
-            },
-            "title": "Validation Failures",
-            "type": "array"
-          },
-          "validation_total": {
-            "minimum": 0.0,
-            "title": "Validation Total",
-            "type": "integer"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "state",
           "validation_total",
           "validation_failed"
         ],
-        "title": "Quality",
-        "type": "object"
+        "title": "Quality"
       },
       "ReadinessStatus": {
+        "type": "string",
         "enum": [
           "ready",
           "processing",
           "stale"
         ],
-        "title": "ReadinessStatus",
-        "type": "string"
+        "title": "ReadinessStatus"
       },
       "RefreshResponse": {
-        "additionalProperties": false,
         "properties": {
-          "identity": {
-            "$ref": "#/components/schemas/Identity"
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
           },
           "job_id": {
-            "title": "Job Id",
-            "type": "string"
-          },
-          "schema_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
-            "title": "Schema Version",
-            "type": "string"
+            "type": "string",
+            "title": "Job Id"
           },
           "status": {
             "$ref": "#/components/schemas/JobStatus"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/Identity"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "job_id",
           "status",
           "identity"
         ],
-        "title": "RefreshResponse",
-        "type": "object"
+        "title": "RefreshResponse"
       },
       "SnapshotValues": {
-        "additionalProperties": false,
         "properties": {
-          "eps": {
+          "net_revenue": {
             "anyOf": [
               {
                 "type": "number"
@@ -1635,41 +2374,7 @@
                 "type": "null"
               }
             ],
-            "description": "Compatibility alias of eps_basic",
-            "title": "Eps"
-          },
-          "eps_basic": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Eps Basic"
-          },
-          "equity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Equity"
-          },
-          "free_cash_flow": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Free Cash Flow"
+            "title": "Net Revenue"
           },
           "gross_profit": {
             "anyOf": [
@@ -1682,7 +2387,7 @@
             ],
             "title": "Gross Profit"
           },
-          "loan_loss_provisions": {
+          "operating_income": {
             "anyOf": [
               {
                 "type": "number"
@@ -1691,7 +2396,7 @@
                 "type": "null"
               }
             ],
-            "title": "Loan Loss Provisions"
+            "title": "Operating Income"
           },
           "net_income": {
             "anyOf": [
@@ -1703,6 +2408,84 @@
               }
             ],
             "title": "Net Income"
+          },
+          "eps_basic": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eps Basic"
+          },
+          "eps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eps",
+            "description": "Compatibility alias of eps_basic"
+          },
+          "total_assets": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Assets"
+          },
+          "total_liabilities": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Liabilities"
+          },
+          "equity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Equity"
+          },
+          "operating_cash_flow": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operating Cash Flow"
+          },
+          "free_cash_flow": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Cash Flow"
           },
           "net_interest_income": {
             "anyOf": [
@@ -1726,7 +2509,7 @@
             ],
             "title": "Net Non Interest Income"
           },
-          "net_revenue": {
+          "loan_loss_provisions": {
             "anyOf": [
               {
                 "type": "number"
@@ -1735,111 +2518,28 @@
                 "type": "null"
               }
             ],
-            "title": "Net Revenue"
-          },
-          "operating_cash_flow": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Operating Cash Flow"
-          },
-          "operating_income": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Operating Income"
-          },
-          "total_assets": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Total Assets"
-          },
-          "total_liabilities": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Total Liabilities"
+            "title": "Loan Loss Provisions"
           }
         },
-        "title": "SnapshotValues",
-        "type": "object"
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SnapshotValues"
       },
       "SourceDocument": {
-        "additionalProperties": false,
         "properties": {
-          "checksum": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Checksum"
+          "id": {
+            "type": "integer",
+            "title": "Id"
           },
           "doc_type": {
+            "type": "string",
             "enum": [
               "xbrl",
               "ixbrl",
               "pdf",
               "finmind"
             ],
-            "title": "Doc Type",
-            "type": "string"
-          },
-          "downloaded_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Downloaded At"
-          },
-          "file_size": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "File Size"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "parse_status": {
-            "title": "Parse Status",
-            "type": "string"
+            "title": "Doc Type"
           },
           "url": {
             "anyOf": [
@@ -1851,17 +2551,58 @@
               }
             ],
             "title": "Url"
+          },
+          "file_size": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Size"
+          },
+          "checksum": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checksum"
+          },
+          "downloaded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downloaded At"
+          },
+          "parse_status": {
+            "type": "string",
+            "title": "Parse Status"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "id",
           "doc_type",
           "parse_status"
         ],
-        "title": "SourceDocument",
-        "type": "object"
+        "title": "SourceDocument"
       },
       "SourceType": {
+        "type": "string",
         "enum": [
           "xbrl",
           "ixbrl",
@@ -1870,12 +2611,36 @@
           "pdf_text",
           "computed"
         ],
-        "title": "SourceType",
-        "type": "string"
+        "title": "SourceType"
       },
       "StockSummary": {
-        "additionalProperties": false,
         "properties": {
+          "stock_code": {
+            "type": "string",
+            "title": "Stock Code"
+          },
+          "name_zh": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Zh"
+          },
+          "name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name En"
+          },
           "industry": {
             "anyOf": [
               {
@@ -1898,90 +2663,58 @@
             ],
             "title": "Market"
           },
-          "name_en": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name En"
-          },
-          "name_zh": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name Zh"
-          },
           "periods_count": {
+            "type": "integer",
             "minimum": 0.0,
-            "title": "Periods Count",
-            "type": "integer"
-          },
-          "stock_code": {
-            "title": "Stock Code",
-            "type": "string"
+            "title": "Periods Count"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "stock_code",
           "periods_count"
         ],
-        "title": "StockSummary",
-        "type": "object"
+        "title": "StockSummary"
       },
       "StocksResponse": {
-        "additionalProperties": false,
         "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0",
+            "title": "Schema Version",
+            "default": "1.0.0"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/StockSummary"
             },
-            "title": "Items",
-            "type": "array"
-          },
-          "pagination": {
-            "$ref": "#/components/schemas/Pagination"
-          },
-          "schema_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
-            "title": "Schema Version",
-            "type": "string"
+            "type": "array",
+            "title": "Items"
           },
           "stocks": {
-            "description": "Compatibility alias of items",
             "items": {
               "$ref": "#/components/schemas/StockSummary"
             },
+            "type": "array",
             "title": "Stocks",
-            "type": "array"
+            "description": "Compatibility alias of items"
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "items",
           "stocks",
           "pagination"
         ],
-        "title": "StocksResponse",
-        "type": "object"
+        "title": "StocksResponse"
       },
       "ValidationError": {
         "properties": {
-          "ctx": {
-            "title": "Context",
-            "type": "object"
-          },
-          "input": {
-            "title": "Input"
-          },
           "loc": {
             "items": {
               "anyOf": [
@@ -1993,40 +2726,53 @@
                 }
               ]
             },
-            "title": "Location",
-            "type": "array"
+            "type": "array",
+            "title": "Location"
           },
           "msg": {
-            "title": "Message",
-            "type": "string"
+            "type": "string",
+            "title": "Message"
           },
           "type": {
-            "title": "Error Type",
-            "type": "string"
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
+        "type": "object",
         "required": [
           "loc",
           "msg",
           "type"
         ],
-        "title": "ValidationError",
-        "type": "object"
+        "title": "ValidationError"
       },
       "ValidationFailure": {
-        "additionalProperties": false,
         "properties": {
-          "checked_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+          "rule_name": {
+            "type": "string",
+            "title": "Rule Name"
+          },
+          "passed": {
+            "type": "boolean",
+            "const": false,
+            "title": "Passed",
+            "default": false
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info"
             ],
-            "title": "Checked At"
+            "title": "Severity"
           },
           "message": {
             "anyOf": [
@@ -2039,47 +2785,45 @@
             ],
             "title": "Message"
           },
-          "passed": {
-            "const": false,
-            "default": false,
-            "title": "Passed",
-            "type": "boolean"
-          },
-          "rule_name": {
-            "title": "Rule Name",
-            "type": "string"
-          },
-          "severity": {
-            "enum": [
-              "error",
-              "warning",
-              "info"
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Severity",
-            "type": "string"
+            "title": "Checked At"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "rule_name",
           "severity"
         ],
-        "title": "ValidationFailure",
-        "type": "object"
+        "title": "ValidationFailure"
       },
       "ValidationResult": {
-        "additionalProperties": false,
         "properties": {
-          "checked_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+          "rule_name": {
+            "type": "string",
+            "title": "Rule Name"
+          },
+          "passed": {
+            "type": "boolean",
+            "title": "Passed"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info"
             ],
-            "title": "Checked At"
+            "title": "Severity"
           },
           "message": {
             "anyOf": [
@@ -2092,629 +2836,27 @@
             ],
             "title": "Message"
           },
-          "passed": {
-            "title": "Passed",
-            "type": "boolean"
-          },
-          "rule_name": {
-            "title": "Rule Name",
-            "type": "string"
-          },
-          "severity": {
-            "enum": [
-              "error",
-              "warning",
-              "info"
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Severity",
-            "type": "string"
+            "title": "Checked At"
           }
         },
+        "additionalProperties": false,
+        "type": "object",
         "required": [
           "rule_name",
           "passed",
           "severity"
         ],
-        "title": "ValidationResult",
-        "type": "object"
-      }
-    }
-  },
-  "info": {
-    "title": "FinancialReports API",
-    "version": "1.0.0"
-  },
-  "openapi": "3.1.0",
-  "paths": {
-    "/health/live": {
-      "get": {
-        "operationId": "health_live_health_live_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Health Live",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/health/ready": {
-      "get": {
-        "operationId": "health_ready_health_ready_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Health Ready",
-        "tags": [
-          "health"
-        ]
-      }
-    },
-    "/v1/batch/filings/query": {
-      "post": {
-        "operationId": "batch_query_v1_batch_filings_query_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BatchQueryRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BatchQueryResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Batch Query",
-        "tags": [
-          "batch"
-        ]
-      }
-    },
-    "/v1/capabilities": {
-      "get": {
-        "operationId": "capabilities_v1_capabilities_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CapabilitiesResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Capabilities",
-        "tags": [
-          "discovery"
-        ]
-      }
-    },
-    "/v1/filings/{stock_code}/{period}/context": {
-      "get": {
-        "operationId": "context_v1_filings__stock_code___period__context_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "stock_code",
-            "required": true,
-            "schema": {
-              "title": "Stock Code",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "period",
-            "required": true,
-            "schema": {
-              "title": "Period",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "fields",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Fields"
-            }
-          },
-          {
-            "in": "query",
-            "name": "evidence_limit",
-            "required": false,
-            "schema": {
-              "default": 10,
-              "maximum": 50,
-              "minimum": 0,
-              "title": "Evidence Limit",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ContextEnvelope"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Context",
-        "tags": [
-          "filings"
-        ]
-      }
-    },
-    "/v1/filings/{stock_code}/{period}/refresh": {
-      "post": {
-        "operationId": "refresh_v1_filings__stock_code___period__refresh_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "stock_code",
-            "required": true,
-            "schema": {
-              "title": "Stock Code",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "period",
-            "required": true,
-            "schema": {
-              "title": "Period",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RefreshResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Refresh",
-        "tags": [
-          "jobs"
-        ]
-      }
-    },
-    "/v1/filings/{stock_code}/{period}/snapshot": {
-      "get": {
-        "operationId": "snapshot_v1_filings__stock_code___period__snapshot_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "stock_code",
-            "required": true,
-            "schema": {
-              "title": "Stock Code",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "period",
-            "required": true,
-            "schema": {
-              "title": "Period",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "fields",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Fields"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FilingEnvelope"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          }
-        },
-        "summary": "Snapshot",
-        "tags": [
-          "filings"
-        ]
-      }
-    },
-    "/v1/jobs/{job_id}": {
-      "get": {
-        "operationId": "get_job_v1_jobs__job_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "job_id",
-            "required": true,
-            "schema": {
-              "title": "Job Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JobResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Job",
-        "tags": [
-          "jobs"
-        ]
-      }
-    },
-    "/v1/schema": {
-      "get": {
-        "operationId": "schema_discovery_v1_schema_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Schema Discovery V1 Schema Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Schema Discovery",
-        "tags": [
-          "discovery"
-        ]
-      }
-    },
-    "/v1/stocks": {
-      "get": {
-        "operationId": "list_stocks_v1_stocks_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "maximum": 100000,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 100,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Query"
-            }
-          },
-          {
-            "in": "query",
-            "name": "industry",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 100,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Industry"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StocksResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "List Stocks",
-        "tags": [
-          "filings"
-        ]
-      }
-    },
-    "/v1/stocks/{stock_code}/periods": {
-      "get": {
-        "operationId": "list_periods_v1_stocks__stock_code__periods_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "stock_code",
-            "required": true,
-            "schema": {
-              "title": "Stock Code",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "maximum": 100000,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PeriodsResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "List Periods",
-        "tags": [
-          "filings"
-        ]
+        "title": "ValidationResult"
       }
     }
   }

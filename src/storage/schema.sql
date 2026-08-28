@@ -104,12 +104,16 @@ CREATE TABLE IF NOT EXISTS document_chunks (
     created_at        TIMESTAMPTZ      NOT NULL DEFAULT now()
 );
 
--- Vector embeddings for chunks (optional)
+-- Vector embeddings for chunks.
+-- Populated offline by `fr embed` (needs the `vector` extra); retrieval falls
+-- back to section filtering and importance when a filing has none.
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE IF NOT EXISTS chunk_embeddings (
-    chunk_id   INTEGER PRIMARY KEY REFERENCES document_chunks(id),
-    model_name TEXT        NOT NULL,
-    embedding  BYTEA       NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    chunk_id   INTEGER PRIMARY KEY REFERENCES document_chunks(id) ON DELETE CASCADE,
+    model_name TEXT         NOT NULL,
+    embedding  VECTOR(768)  NOT NULL,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
 -- Text summaries
@@ -233,3 +237,8 @@ CREATE INDEX IF NOT EXISTS idx_cards_filing           ON insight_cards(filing_id
 CREATE INDEX IF NOT EXISTS idx_insight_evidence_card  ON insight_evidence(card_id);
 CREATE INDEX IF NOT EXISTS idx_validation_filing      ON validation_results(filing_id);
 CREATE INDEX IF NOT EXISTS idx_pipeline_filing_key    ON pipeline_runs(filing_key);
+
+-- Approximate nearest-neighbour index for question-directed retrieval.
+-- Cosine distance, matching the normalised embeddings `fr embed` writes.
+CREATE INDEX IF NOT EXISTS idx_chunk_embeddings_hnsw
+    ON chunk_embeddings USING hnsw (embedding vector_cosine_ops);

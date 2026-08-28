@@ -12,6 +12,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 from rich.panel import Panel
+from rich.progress import Progress
 from rich.table import Table
 
 from src.domain.identity import FilingIdentity
@@ -470,3 +471,95 @@ def _print_result(stage: str, result: dict) -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     app()
+
+
+@app.command()
+def embed(
+    stock: str | None = typer.Option(None, help="Only embed this stock code"),
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
+    batch_size: int = typer.Option(64, help="Chunks encoded per forward pass"),
+    limit: int | None = typer.Option(None, help="Stop after this many chunks (for trials)"),
+) -> None:
+    """Generate chunk embeddings for question-directed retrieval.
+
+    Requires the vector extra: `uv sync --extra vector`. Already-embedded
+    chunks are skipped, so the command is resumable.
+    """
+    from sqlalchemy import text
+
+    from src.agent.embedding import EMBEDDING_DIM, encode, is_available, model_name
+
+    if not is_available():
+        console.print("[red]sentence-transformers is not installed.[/red]")
+        console.print("Install it with: [cyan]uv sync --extra vector[/cyan]")
+        raise typer.Exit(1)
+
+    store = _make_store(db)
+    name = model_name()
+
+    where = "WHERE ce.chunk_id IS NULL"
+    params: dict = {}
+    if stock:
+        where += " AND f.filing_key LIKE :prefix"
+        params["prefix"] = f"{stock}_%"
+
+    with store.conn() as conn:
+        pending = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM document_chunks dc"
+                " JOIN source_documents sd ON sd.id=dc.doc_id"
+                " JOIN filings f ON f.id=sd.filing_id"
+                " LEFT JOIN chunk_embeddings ce ON ce.chunk_id=dc.id " + where
+            ),
+            params,
+        ).scalar_one()
+
+    if limit is not None:
+        pending = min(pending, limit)
+    if not pending:
+        console.print("[green]Nothing to embed — every chunk already has an embedding.[/green]")
+        return
+
+    console.print(
+        f"Embedding [cyan]{pending:,}[/cyan] chunks with [cyan]{name}[/cyan] ({EMBEDDING_DIM}d)"
+    )
+
+    done = 0
+    with Progress() as progress:
+        task = progress.add_task("encoding", total=pending)
+        while done < pending:
+            take = min(batch_size, pending - done)
+            with store.conn() as conn:
+                rows = conn.execute(
+                    text(
+                        "SELECT dc.id, dc.content FROM document_chunks dc"
+                        " JOIN source_documents sd ON sd.id=dc.doc_id"
+                        " JOIN filings f ON f.id=sd.filing_id"
+                        " LEFT JOIN chunk_embeddings ce ON ce.chunk_id=dc.id "
+                        + where
+                        + " ORDER BY dc.id LIMIT :take"
+                    ),
+                    {**params, "take": take},
+                ).fetchall()
+            if not rows:
+                break
+
+            vectors = encode([row[1] for row in rows], batch_size=batch_size)
+            payload = [
+                {"cid": row[0], "model": name, "vec": str(vector)}
+                for row, vector in zip(rows, vectors)
+            ]
+            with store.conn() as conn:
+                conn.execute(
+                    text(
+                        "INSERT INTO chunk_embeddings(chunk_id, model_name, embedding)"
+                        " VALUES(:cid, :model, CAST(:vec AS vector))"
+                        " ON CONFLICT (chunk_id) DO UPDATE SET"
+                        " embedding=EXCLUDED.embedding, model_name=EXCLUDED.model_name"
+                    ),
+                    payload,
+                )
+            done += len(rows)
+            progress.update(task, advance=len(rows))
+
+    console.print(f"[green]Embedded {done:,} chunks.[/green]")
