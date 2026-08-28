@@ -9,14 +9,14 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.sources.mops_client import MOPSClient
-    from src.storage.sqlite_store import SQLiteStore
+    from src.storage.store import FilingStore
 
 logger = logging.getLogger(__name__)
 
 
 def resolve_company(
     stock_code: str,
-    store: SQLiteStore,
+    store: FilingStore,
     mops_client: MOPSClient | None = None,
 ) -> tuple[int, str]:
     """

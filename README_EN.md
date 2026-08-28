@@ -94,7 +94,7 @@ After the pipeline has populated `data/financial.db`, start the producer API
 used by Financial Agent and other typed consumers:
 
 ```bash
-FR_DB_PATH=data/financial.db uv run uvicorn src.api.app:app --host 127.0.0.1 --port 8010
+uv run uvicorn src.api.app:create_app --factory --host 127.0.0.1 --port 8010
 ```
 
 - Swagger UI: `http://127.0.0.1:8010/docs`
@@ -105,7 +105,7 @@ FR_DB_PATH=data/financial.db uv run uvicorn src.api.app:app --host 127.0.0.1 --p
 
 See [API v1](docs/API_V1.md) for status codes, units, absence semantics, and
 the complete contract. Cross-repository consumers use HTTP and never share the
-producer SQLite file.
+producer database connection.
 
 ### Single Filing
 
@@ -327,7 +327,7 @@ uv run fr batch <batch.json> [options]
 
 | Option | Default | Applies To | Description |
 |--------|---------|------------|-------------|
-| `--db PATH` | `data/financial.db` | all | SQLite database path |
+| `--db URL` | `$FR_DATABASE_URL` | all | PostgreSQL connection URL |
 | `--output-dir PATH` | `data/raw` | ingest, run | Directory for downloaded source files |
 | `--force` | False | all | Force re-run of already-completed stages |
 | `--stages TEXT` | all | run | Only run specified stages (comma-separated) |
@@ -427,7 +427,7 @@ data/financial_reports/
 
 ## 6. Database Schema
 
-Data is stored in SQLite (default: `data/financial.db`, WAL mode for concurrent read/write). There are 17 tables in total.
+Data is stored in PostgreSQL (connected via `FR_DATABASE_URL`; see `docker-compose.yml`). There are 17 tables in total.
 
 ### Core Tables
 
@@ -650,7 +650,7 @@ FinancialReports/
 │   │
 │   ├── storage/
 │   │   ├── schema.sql                # Full DDL for all 17 tables (with PRAGMA settings)
-│   │   ├── sqlite_store.py           # SQLAlchemy Core wrapper (upsert, bulk save)
+│   │   ├── store.py                  # SQLAlchemy Core wrapper (upsert, bulk save)
 │   │   ├── json_exporter.py          # Export filing data to JSON
 │   │   └── vector_store.py           # Vector storage interface (ChromaDB, placeholder)
 │   │
@@ -674,7 +674,7 @@ FinancialReports/
 │   │   ├── app.py                    # FastAPI v1 routes, health, and errors
 │   │   ├── contracts.py              # Versioned Pydantic consumer schema
 │   │   ├── service.py                # Filing envelope and capability assembly
-│   │   ├── repository.py             # API-specific SQLite read model
+│   │   ├── repository.py             # API-specific read model
 │   │   ├── jobs.py                   # Process-local refresh job registry
 │   │   └── export_openapi.py         # Committed OpenAPI artifact generator
 │   │
@@ -691,7 +691,7 @@ FinancialReports/
 │   ├── batch_query.json              # Query batch config
 │   └── semiconductor_batch.json      # Semiconductor sector batch config
 ├── data/
-│   ├── financial.db                  # SQLite database (default path)
+│   ├── financial.db                  # legacy SQLite database (one-time migration only)
 │   ├── raw/                          # Downloaded XBRL / iXBRL staging area
 │   └── financial_reports/            # Local PDF cache
 ├── docs/API_V1.md                    # HTTP API contract and operations

@@ -8,7 +8,7 @@ from typing import Any
 
 from sqlalchemy import text
 
-from src.storage.sqlite_store import SQLiteStore
+from src.storage.store import FilingStore
 
 
 def _dicts(rows: Sequence[Any]) -> list[dict[str, Any]]:
@@ -16,7 +16,7 @@ def _dicts(rows: Sequence[Any]) -> list[dict[str, Any]]:
 
 
 class APIRepository:
-    def __init__(self, store: SQLiteStore) -> None:
+    def __init__(self, store: FilingStore) -> None:
         self.store = store
 
     def ready(self) -> bool:
@@ -71,7 +71,7 @@ class APIRepository:
             ).scalar_one()
             rows = conn.execute(
                 text(
-                    "SELECT printf('%04d', f.year) || f.quarter AS period, f.status,"
+                    "SELECT to_char(f.year, 'FM0000') || f.quarter AS period, f.status,"
                     " f.quality_score, f.updated_at FROM filings f"
                     " JOIN companies c ON c.id=f.company_id"
                     " WHERE c.stock_code=:stock_code"
@@ -134,7 +134,7 @@ class APIRepository:
             comparisons = _dicts(
                 conn.execute(
                     text(
-                        "SELECT pc.field, pc.compare_type, printf('%04d', cf.year) || cf.quarter"
+                        "SELECT pc.field, pc.compare_type, to_char(cf.year, 'FM0000') || cf.quarter"
                         " AS compare_period, pc.current_value, pc.prior_value, pc.change_abs,"
                         " pc.change_pct, pc.direction, pc.significance, pc.interpretation"
                         " FROM period_comparisons pc LEFT JOIN filings cf"

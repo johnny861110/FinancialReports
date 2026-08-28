@@ -32,7 +32,7 @@
 
 **技術棧：**
 - Python 3.10+
-- SQLite（WAL mode）
+- PostgreSQL 16 + pgvector（容器化）
 - SQLAlchemy Core
 - asyncio-first 架構
 - Pydantic v2
@@ -71,7 +71,7 @@ uv run fr insights <stock_code> <year> <quarter>
 
 | 選項 | 預設值 | 說明 |
 |------|--------|------|
-| `--db` | `data/financial.db` | SQLite 資料庫路徑 |
+| `--db` | `$FR_DATABASE_URL` | PostgreSQL 連線 URL |
 | `--output-dir` | `data/raw` | 原始文件下載目錄 |
 | `--stages` | 全部 | 逗號分隔階段，例如 `ingest,extract` |
 | `--force` | `False` | 強制重新執行已完成的階段 |
@@ -154,7 +154,7 @@ uv run fr ask "<question>" --stock <code> --year <year> --quarter <quarter>
 
 ## 3. 輸出規格 (Output)
 
-### 3.1 SQLite 資料庫
+### 3.1 PostgreSQL 資料庫
 
 預設路徑：`data/financial.db`（WAL mode，支援並發讀寫）
 
@@ -961,12 +961,12 @@ class DetectedEvent(BaseModel):
 
 本專案以 FastAPI 提供跨 repository 的 versioned consumer contract。正式
 邊界是 HTTP 與 committed `docs/openapi-v1.json`，consumer 不得直接讀取本專案
-SQLite 或本地檔案。
+PostgreSQL 或本地檔案。
 
 **啟動：**
 
 ```bash
-FR_DB_PATH=data/financial.db uv run uvicorn src.api.app:app --host 127.0.0.1 --port 8010
+uv run uvicorn src.api.app:create_app --factory --host 127.0.0.1 --port 8010
 ```
 
 **主要端點：**
@@ -1180,7 +1180,7 @@ FinancialReports/
 │   │   └── company_mapper.py         # 股票代碼 → 公司資訊解析
 │   ├── storage/
 │   │   ├── schema.sql                # 17 張表的完整 DDL
-│   │   ├── sqlite_store.py           # SQLAlchemy Core wrapper
+│   │   ├── store.py                  # SQLAlchemy Core wrapper
 │   │   ├── json_exporter.py          # JSON 匯出
 │   │   └── vector_store.py           # 向量儲存（佔位）
 │   ├── analytics/
@@ -1200,7 +1200,7 @@ FinancialReports/
 │   │   ├── app.py                    # FastAPI v1 routes 與 health
 │   │   ├── contracts.py              # Versioned consumer schema
 │   │   ├── service.py                # Filing envelope 組裝
-│   │   ├── repository.py             # API SQLite read model
+│   │   ├── repository.py             # API read model
 │   │   ├── jobs.py                   # Process-local refresh jobs
 │   │   └── export_openapi.py         # OpenAPI artifact 產生器
 │   └── pipeline/
@@ -1215,7 +1215,7 @@ FinancialReports/
 │   ├── batch_query.json
 │   └── semiconductor_batch.json
 ├── data/
-│   ├── financial.db                  # 預設 SQLite 資料庫
+│   ├── financial.db                  # 舊 SQLite 資料庫（僅供搬遷）
 │   ├── raw/                          # XBRL/iXBRL 下載暫存
 │   └── financial_reports/            # PDF 本地快取
 │       └── {period_code}_{stock_code}_AI1.pdf

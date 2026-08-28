@@ -8,7 +8,7 @@ contract tests.
 ## Run locally
 
 ```bash
-FR_DB_PATH=data/financial.db uv run uvicorn src.api.app:app --host 127.0.0.1 --port 8000
+uv run uvicorn src.api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
 - OpenAPI: `GET /openapi.json`

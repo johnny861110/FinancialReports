@@ -32,10 +32,10 @@ def main(ctx: typer.Context) -> None:
         raise typer.Exit()
 
 
-def _make_store(db: str):
-    from src.storage.sqlite_store import SQLiteStore
+def _make_store(db: str | None):
+    from src.storage.store import FilingStore
 
-    return SQLiteStore(db)
+    return FilingStore(db)
 
 
 def _make_identity(stock: str, year: int, quarter: str) -> FilingIdentity:
@@ -50,7 +50,7 @@ def ingest(
     stock: str = typer.Argument(..., help="Stock code, e.g. 2330"),
     year: int = typer.Argument(..., help="CE year, e.g. 2024"),
     quarter: str = typer.Argument(..., help="Quarter: Q1|Q2|Q3|Q4"),
-    db: str = typer.Option("data/financial.db", help="SQLite database path"),
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
     output_dir: str = typer.Option("data/raw", help="Directory for downloaded files"),
     force: bool = typer.Option(False, "--force", "-f", help="Re-ingest even if already done"),
 ) -> None:
@@ -72,7 +72,7 @@ def extract(
     stock: str = typer.Argument(..., help="Stock code"),
     year: int = typer.Argument(..., help="CE year"),
     quarter: str = typer.Argument(..., help="Quarter: Q1|Q2|Q3|Q4"),
-    db: str = typer.Option("data/financial.db", help="SQLite database path"),
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
     force: bool = typer.Option(False, "--force", "-f", help="Re-extract even if already done"),
 ) -> None:
     """Parse source documents and extract financial facts."""
@@ -96,7 +96,7 @@ def validate(
     stock: str = typer.Argument(..., help="Stock code"),
     year: int = typer.Argument(..., help="CE year"),
     quarter: str = typer.Argument(..., help="Quarter: Q1|Q2|Q3|Q4"),
-    db: str = typer.Option("data/financial.db", help="SQLite database path"),
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
 ) -> None:
     """Validate financial data quality and run consistency checks."""
     identity = _make_identity(stock, year, quarter)
@@ -118,7 +118,7 @@ def insights(
     stock: str = typer.Argument(..., help="Stock code"),
     year: int = typer.Argument(..., help="CE year"),
     quarter: str = typer.Argument(..., help="Quarter: Q1|Q2|Q3|Q4"),
-    db: str = typer.Option("data/financial.db", help="SQLite database path"),
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
 ) -> None:
     """Compute financial metrics and build insight cards."""
     identity = _make_identity(stock, year, quarter)
@@ -138,7 +138,7 @@ def run(
     stock: str = typer.Argument(..., help="Stock code"),
     year: int = typer.Argument(..., help="CE year"),
     quarter: str = typer.Argument(..., help="Quarter: Q1|Q2|Q3|Q4"),
-    db: str = typer.Option("data/financial.db", help="SQLite database path"),
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
     output_dir: str = typer.Option("data/raw", help="Directory for downloaded files"),
     stages: str | None = typer.Option(
         None, help=f"Comma-separated stages to run. Default: all. Options: {','.join(STAGES)}"
@@ -172,7 +172,7 @@ def ask(
     stock: str = typer.Option(..., "--stock", "-s", help="Stock code"),
     year: int = typer.Option(..., "--year", "-y", help="CE year"),
     quarter: str = typer.Option(..., "--quarter", "-q", help="Quarter: Q1|Q2|Q3|Q4"),
-    db: str = typer.Option("data/financial.db", help="SQLite database path"),
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
 ) -> None:
     """Query financial insights with natural language."""
     identity = _make_identity(stock, year, quarter)
@@ -331,7 +331,7 @@ def _display_context_pack(ctx: dict) -> None:
 @app.command()
 def batch(
     config_file: str = typer.Argument(..., help="JSON config file with list of filings"),
-    db: str = typer.Option("data/financial.db", help="SQLite database path"),
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
     output_dir: str = typer.Option("data/raw", help="Output directory for downloads"),
     stages: str | None = typer.Option(None, help="Comma-separated stages to run"),
     concurrency: int = typer.Option(4, "--concurrency", "-c", help="Max parallel filings"),
@@ -407,7 +407,7 @@ def show(
     stock: str = typer.Argument(..., help="Stock code"),
     year: int = typer.Argument(..., help="CE year"),
     quarter: str = typer.Argument(..., help="Quarter: Q1|Q2|Q3|Q4"),
-    db: str = typer.Option("data/financial.db", help="SQLite database path"),
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
     format: str = typer.Option("table", help="Output format: table|json|summary"),
 ) -> None:
     """Show filing data: facts, metrics, and insight cards."""

@@ -15,12 +15,12 @@ from src.domain.identity import FilingIdentity
 from src.domain.models import InsightCard
 
 if TYPE_CHECKING:
-    from src.storage.sqlite_store import SQLiteStore
+    from src.storage.store import FilingStore
 
 logger = logging.getLogger(__name__)
 
 
-def run_build_insights(identity: FilingIdentity, store: SQLiteStore) -> dict:
+def run_build_insights(identity: FilingIdentity, store: FilingStore) -> dict:
     """
     Pipeline stage 4: Compute analytics and build insight cards.
 

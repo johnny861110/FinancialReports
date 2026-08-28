@@ -90,13 +90,34 @@ FINMIND_TOKEN=              # FinMind 付費 token（免費層不需要）
 
 ## 2. 快速開始
 
+### 啟動資料庫（容器）
+
+資料存放於 PostgreSQL，所有指令與測試都透過 `FR_DATABASE_URL` 連線：
+
+```bash
+cp .env.example .env          # 視需要調整帳密與連接埠
+docker compose up -d db       # 啟動 pgvector/pgvector:pg16
+export FR_DATABASE_URL="postgresql+psycopg://financial:financial@localhost:5432/financial"
+```
+
+首次連線會自動依 `src/storage/schema.sql` 建立資料表。
+
+若有舊版 SQLite 資料庫，用一次性搬遷腳本轉入。腳本會保留主鍵（`document_chunks.id`
+是 API 對外暴露的 chunk 識別碼，重新編號會讓引用失效），並在結束時比對每張表的
+筆數與 `max(id)`：
+
+```bash
+uv run python scripts/migrate_sqlite_to_postgres.py \
+    --sqlite data/financial.db --url "$FR_DATABASE_URL"
+```
+
 ### 啟動 HTTP API v1
 
-完成 pipeline 並建立 `data/financial.db` 後，可啟動提供給 Financial Agent
+資料庫就緒後，可啟動提供給 Financial Agent
 及其他 typed consumer 的唯讀/工作排程 API：
 
 ```bash
-FR_DB_PATH=data/financial.db uv run uvicorn src.api.app:app --host 127.0.0.1 --port 8010
+uv run uvicorn src.api.app:create_app --factory --host 127.0.0.1 --port 8010
 ```
 
 - Swagger UI：`http://127.0.0.1:8010/docs`
@@ -107,7 +128,7 @@ FR_DB_PATH=data/financial.db uv run uvicorn src.api.app:app --host 127.0.0.1 --p
 
 完整 contract、狀態碼、單位與 absence semantics 請見
 [API v1 文件](docs/API_V1.md)。跨 repository 只支援 HTTP contract，不共用
-SQLite 檔案。
+資料庫連線。
 
 ### 單筆執行
 
@@ -331,7 +352,7 @@ uv run fr batch <batch.json> [選項]
 
 | 選項 | 預設值 | 適用指令 | 說明 |
 |------|--------|----------|------|
-| `--db PATH` | `data/financial.db` | 全部 | SQLite 資料庫路徑 |
+| `--db URL` | `$FR_DATABASE_URL` | 全部 | PostgreSQL 連線 URL |
 | `--output-dir PATH` | `data/raw` | ingest, run | 原始文件下載目錄 |
 | `--force` | False | 全部 | 強制重新執行已完成的階段 |
 | `--stages TEXT` | 全部 | run | 只執行指定階段，逗號分隔 |
@@ -431,7 +452,7 @@ data/financial_reports/
 
 ## 6. 資料庫結構
 
-資料存放於 SQLite（預設：`data/financial.db`，WAL 模式支援並發讀寫）。共 17 張資料表：
+資料存放於 PostgreSQL（透過 `FR_DATABASE_URL` 連線，容器見 `docker-compose.yml`）。共 17 張資料表：
 
 ### 核心資料表
 
@@ -662,7 +683,7 @@ FinancialReports/
 │   │
 │   ├── storage/
 │   │   ├── schema.sql                # 17 張表完整 DDL（含 PRAGMA 設定）
-│   │   ├── sqlite_store.py           # SQLAlchemy Core wrapper（upsert、bulk save）
+│   │   ├── store.py                  # SQLAlchemy Core wrapper（upsert、bulk save）
 │   │   ├── json_exporter.py          # 匯出 filing 資料為 JSON
 │   │   └── vector_store.py           # 向量儲存介面（ChromaDB，佔位）
 │   │
@@ -686,7 +707,7 @@ FinancialReports/
 │   │   ├── app.py                    # FastAPI v1 routes、health 與 error contract
 │   │   ├── contracts.py              # Versioned Pydantic consumer schema
 │   │   ├── service.py                # Filing envelope 與 capability 組裝
-│   │   ├── repository.py             # API 專用 SQLite read model
+│   │   ├── repository.py             # API 專用 read model
 │   │   ├── jobs.py                   # Process-local refresh job registry
 │   │   └── export_openapi.py         # 產生 committed OpenAPI artifact
 │   │
@@ -703,7 +724,7 @@ FinancialReports/
 │   ├── batch_query.json              # 查詢批次設定
 │   └── semiconductor_batch.json      # 半導體族群批次設定
 ├── data/
-│   ├── financial.db                  # SQLite 資料庫（預設路徑）
+│   ├── financial.db                  # 舊 SQLite 資料庫（僅供一次性搬遷）
 │   ├── raw/                          # 下載的 XBRL / iXBRL 暫存
 │   └── financial_reports/            # PDF 本地快取
 ├── docs/API_V1.md                    # HTTP API contract 與操作說明

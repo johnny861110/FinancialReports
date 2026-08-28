@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from src.domain.identity import FilingIdentity
 
 if TYPE_CHECKING:
-    from src.storage.sqlite_store import SQLiteStore
+    from src.storage.store import FilingStore
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ _STAGE_STATUS = {
 
 async def run_pipeline_async(
     identity: FilingIdentity,
-    store: SQLiteStore,
+    store: FilingStore,
     output_dir: Path,
     stages: list[str] | None = None,
     force: bool = False,
@@ -111,7 +111,7 @@ async def run_pipeline_async(
 
 async def run_batch_async(
     filings: list[FilingIdentity],
-    store: SQLiteStore,
+    store: FilingStore,
     output_dir: Path,
     stages: list[str] | None = None,
     force: bool = False,
@@ -142,7 +142,7 @@ async def run_batch_async(
 
 def run_pipeline(
     identity: FilingIdentity,
-    store: SQLiteStore,
+    store: FilingStore,
     output_dir: Path,
     stages: list[str] | None = None,
     force: bool = False,
@@ -165,7 +165,7 @@ def _status_reached(current: str | None, target: str) -> bool:
     return cur_rank >= tgt_rank
 
 
-def _recover_doc_paths(identity: FilingIdentity, store: SQLiteStore) -> dict:
+def _recover_doc_paths(identity: FilingIdentity, store: FilingStore) -> dict:
     filing_id = store.get_filing_id(identity.filing_key)
     if filing_id is None:
         return {}
