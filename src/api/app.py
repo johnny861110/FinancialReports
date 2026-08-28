@@ -12,6 +12,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from src.agent.embedding import encode_question
 from src.api.contracts import (
     SCHEMA_VERSION,
     BatchQueryRequest,
@@ -221,10 +222,22 @@ def create_app(
         repo: Repo,
         fields: Annotated[list[str] | None, Query()] = None,
         evidence_limit: Annotated[int, Query(ge=0, le=50)] = 10,
+        question: Annotated[str | None, Query(max_length=500)] = None,
+        sections: Annotated[list[str] | None, Query()] = None,
     ) -> ContextEnvelope:
         selected = _validate_query(stock_code, period, fields)
+        validated_sections = _validate_sections(repo, sections)
         bundle = _get_bundle(repo, stock_code, period)
-        chunks = repo.get_chunks(bundle["filing"]["filing_key"], evidence_limit)
+        # None when no question was asked, or when the embedding model is not
+        # installed -- retrieval then falls back to importance ordering rather
+        # than failing the request.
+        question_embedding = encode_question(question) if question else None
+        chunks = repo.get_chunks(
+            bundle["filing"]["filing_key"],
+            evidence_limit,
+            sections=validated_sections,
+            question_embedding=question_embedding,
+        )
         result = build_envelope(bundle, selected, chunks)
         assert isinstance(result, ContextEnvelope)
         return result
@@ -316,6 +329,23 @@ def _validate_query(stock_code: str, period: str, fields: list[str] | None) -> l
     if fields is not None and len(fields) > 40:
         raise APIProblem(422, "too_many_fields", "at most 40 fields are allowed", DataState.MISSING)
     return ensure_fields(fields)
+
+
+def _validate_sections(repo: APIRepository, sections: list[str] | None) -> list[str] | None:
+    """Reject unknown section types rather than silently returning nothing."""
+    if not sections:
+        return None
+    known = set(repo.known_section_types())
+    unknown = sorted(set(sections) - known)
+    if unknown:
+        raise APIProblem(
+            422,
+            "unknown_sections",
+            "one or more section types are unknown",
+            DataState.MISSING,
+            details={"sections": unknown, "known": sorted(known)},
+        )
+    return list(dict.fromkeys(sections))
 
 
 def _get_bundle(repo: APIRepository, stock_code: str, period: str) -> dict[str, Any]:

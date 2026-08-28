@@ -11,6 +11,7 @@ from src.api.contracts import (
     DataState,
     Event,
     Evidence,
+    EvidenceChunk,
     Fact,
     FieldAvailability,
     FilingEnvelope,
@@ -287,8 +288,31 @@ def build_envelope(
         "pipeline_state": [PipelineRun(**item) for item in bundle["pipeline_state"]],
     }
     if chunks is not None:
-        return ContextEnvelope(**base, evidence_chunks=chunks)
+        return ContextEnvelope(**base, evidence_chunks=[_evidence_chunk(c) for c in chunks])
     return FilingEnvelope(**base)
+
+
+# Per-chunk content cap. evidence_limit bounds how many chunks come back, but
+# without a size cap a caller could still pull unbounded filing text into an
+# LLM prompt.
+MAX_CHUNK_CHARS = 1200
+
+
+def _evidence_chunk(row: dict[str, Any]) -> EvidenceChunk:
+    content = row.get("content") or ""
+    return EvidenceChunk(
+        chunk_id=row["id"],
+        doc_id=row["doc_id"],
+        page_number=row.get("page_number"),
+        section_type=row.get("section_type"),
+        section_title=row.get("section_title"),
+        content=content[:MAX_CHUNK_CHARS],
+        truncated=len(content) > MAX_CHUNK_CHARS,
+        checksum=row.get("checksum"),
+        source_url=row.get("source_url"),
+        importance_score=row.get("importance_score"),
+        retrieval_score=row.get("retrieval_score"),
+    )
 
 
 def _as_datetime(value: str | datetime) -> datetime:
