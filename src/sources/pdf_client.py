@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 
 import httpx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from src.domain.identity import FilingIdentity
 
@@ -57,19 +57,20 @@ class MOPSPDFClient:
             logger.info("PDF already exists: %s", local_path)
             return local_path
 
-        own_client = client is None
-        if own_client:
-            client = httpx.AsyncClient(
+        active_client = client
+        own_client = active_client is None
+        if active_client is None:
+            active_client = httpx.AsyncClient(
                 headers=_HEADERS, timeout=self.timeout, follow_redirects=True
             )
 
         try:
-            pdf_url = await self._get_pdf_url_async(identity, client)
-            await self._stream_download_async(pdf_url, local_path, client)
+            pdf_url = await self._get_pdf_url_async(identity, active_client)
+            await self._stream_download_async(pdf_url, local_path, active_client)
             return local_path
         finally:
             if own_client:
-                await client.aclose()
+                await active_client.aclose()
 
     async def _get_pdf_url_async(self, identity: FilingIdentity, client: httpx.AsyncClient) -> str:
         payload = {
@@ -122,12 +123,18 @@ class MOPSPDFClient:
         soup = BeautifulSoup(html, "lxml")
         base = "https://doc.twse.com.tw"
         for a in soup.find_all("a", href=True):
-            href: str = a["href"]
+            if not isinstance(a, Tag):
+                continue
+            href = a.get("href")
+            if not isinstance(href, str):
+                continue
             if filename in href or ".pdf" in href.lower():
                 return href if href.startswith("http") else f"{base}/{href.lstrip('/')}"
         meta = soup.find("meta", attrs={"http-equiv": "refresh"})
-        if meta and "content" in meta.attrs:
-            content: str = meta["content"]
+        if isinstance(meta, Tag):
+            content = meta.get("content")
+            if not isinstance(content, str):
+                return None
             if "url=" in content.lower():
                 part = content.split("=", 1)[1].strip().strip("'\"")
                 return part if part.startswith("http") else f"{base}/{part.lstrip('/')}"

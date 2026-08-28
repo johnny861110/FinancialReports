@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Key fields that must be present for a "complete" filing
+# Key fields that must be present for a "complete" general filing
 _KEY_FIELDS = [
     "net_revenue",
     "gross_profit",
@@ -27,8 +27,23 @@ _KEY_FIELDS = [
     "operating_cash_flow",
 ]
 
+# Bank/financial-sector filings have a different structure
+_KEY_FIELDS_BANK = [
+    "net_revenue",
+    "net_interest_income",
+    "net_income",
+    "eps_basic",
+    "total_assets",
+    "total_liabilities",
+    "equity",
+    "operating_cash_flow",
+]
+
+# Stock codes for Taiwan financial sector (banks, insurance, securities)
+_BANK_STOCK_PREFIX = ("28",)
+
 # Weight breakdown (must sum to 1.0)
-_WEIGHT_XBRL_COVERAGE = 0.40
+_WEIGHT_SOURCE_COVERAGE = 0.40  # formerly XBRL-only; now counts any structured source
 _WEIGHT_COMPLETENESS = 0.30
 _WEIGHT_VALIDATION_PASS = 0.20
 _WEIGHT_EVIDENCE = 0.10
@@ -50,15 +65,20 @@ def compute_quality_score(filing_key: str, store: SQLiteStore) -> float:
     if not facts:
         return 0.0
 
-    # --- XBRL Coverage (40%) ---
+    # Detect filing type to select appropriate key fields
+    stock_code = filing_key.split("_")[0]
+    is_bank = stock_code.startswith(_BANK_STOCK_PREFIX)
+    key_fields = _KEY_FIELDS_BANK if is_bank else _KEY_FIELDS
+
+    # --- Source Coverage (40%) — counts any structured source (XBRL, iXBRL, FinMind) ---
     canonical_count = len(ALL_CANONICAL)
-    xbrl_fields = {f["field"] for f in facts if f["source_type"] in ("xbrl", "ixbrl")}
-    xbrl_score = len(xbrl_fields) / canonical_count if canonical_count > 0 else 0.0
+    covered_fields = {f["field"] for f in facts if f["source_type"] in ("xbrl", "ixbrl", "finmind")}
+    source_score = len(covered_fields) / canonical_count if canonical_count > 0 else 0.0
 
     # --- Completeness (30%) ---
     all_fields = {f["field"] for f in facts}
-    present_key_fields = sum(1 for kf in _KEY_FIELDS if kf in all_fields)
-    completeness_score = present_key_fields / len(_KEY_FIELDS)
+    present_key_fields = sum(1 for kf in key_fields if kf in all_fields)
+    completeness_score = present_key_fields / len(key_fields)
 
     # --- Validation pass rate (20%) ---
     validation = store.get_validation_results(filing_key)
@@ -96,7 +116,7 @@ def compute_quality_score(filing_key: str, store: SQLiteStore) -> float:
         evidence_score = (n_evidence / n_total) if n_total > 0 else 0.0
 
     score = (
-        xbrl_score * _WEIGHT_XBRL_COVERAGE
+        source_score * _WEIGHT_SOURCE_COVERAGE
         + completeness_score * _WEIGHT_COMPLETENESS
         + validation_score * _WEIGHT_VALIDATION_PASS
         + evidence_score * _WEIGHT_EVIDENCE
@@ -104,10 +124,10 @@ def compute_quality_score(filing_key: str, store: SQLiteStore) -> float:
 
     final_score = round(min(1.0, max(0.0, score)), 4)
     logger.info(
-        "Quality score for %s: %.4f (xbrl=%.2f, completeness=%.2f, validation=%.2f, evidence=%.2f)",
+        "Quality score for %s: %.4f (source=%.2f, completeness=%.2f, validation=%.2f, evidence=%.2f)",
         filing_key,
         final_score,
-        xbrl_score,
+        source_score,
         completeness_score,
         validation_score,
         evidence_score,

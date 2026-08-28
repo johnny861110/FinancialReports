@@ -83,19 +83,20 @@ class XBRLClient:
         if dest.exists() and dest.stat().st_size > 512:
             return dest
 
-        own_client = client is None
-        if own_client:
-            client = httpx.AsyncClient(
+        active_client = client
+        own_client = active_client is None
+        if active_client is None:
+            active_client = httpx.AsyncClient(
                 headers=_HEADERS, timeout=self.timeout, follow_redirects=True
             )
         try:
             for url in urls:
-                result = await self._try_url_async(url, dest, expected_suffix, client)
+                result = await self._try_url_async(url, dest, expected_suffix, active_client)
                 if result:
                     return result
         finally:
             if own_client:
-                await client.aclose()
+                await active_client.aclose()
 
         logger.debug("%s not available for %s", expected_suffix, identity.filing_key)
         return None

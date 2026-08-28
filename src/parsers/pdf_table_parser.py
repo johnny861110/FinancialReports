@@ -124,8 +124,6 @@ def _parse_row(words: list[dict], page_num: int) -> dict | None:
         return None
 
     texts = [w["text"] for w in words]
-    full_line = " ".join(texts)
-
     # Find all numeric tokens (strip $ and parentheses which denote negatives)
     # Skip pure 4-digit tokens: they are Taiwan account codes (e.g. 4000, 5900)
     _ACCOUNT_CODE = re.compile(r"^\d{4}$")
