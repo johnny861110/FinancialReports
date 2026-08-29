@@ -236,27 +236,23 @@ def _extract_pdf_sync(
     # Build RAG chunks
     raw_chunks = build_chunks(sections)
     chunks_count = 0
-    for i, section in enumerate(sections):
-        sec_id = section_id_map.get(i)
-        sec_chunks = [
-            c
-            for c in raw_chunks
-            if c["section_type"] == section.section_type and c.get("section_title") == section.title
-        ]
-        for chunk in sec_chunks:
-            store.save_chunk(
-                doc_id=doc_id,
-                section_id=sec_id,
-                page_number=chunk["page_start"],
-                chunk_index=chunk["chunk_index"],
-                content=chunk["content"],
-                char_offset_start=chunk.get("char_offset_start"),
-                char_offset_end=chunk.get("char_offset_end"),
-                contains_numbers=chunk.get("contains_numbers", False),
-                contains_table=chunk.get("contains_table", False),
-                importance_score=chunk.get("importance_score", 0.5),
-            )
-            chunks_count += 1
+    # Attribute each chunk to the section that produced it, by index. Matching
+    # on (section_type, section_title) instead wrote every chunk once per
+    # section sharing that pair, which duplicated the corpus by up to 170x.
+    for chunk in raw_chunks:
+        store.save_chunk(
+            doc_id=doc_id,
+            section_id=section_id_map.get(chunk["section_index"]),
+            page_number=chunk["page_start"],
+            chunk_index=chunk["chunk_index"],
+            content=chunk["content"],
+            char_offset_start=chunk.get("char_offset_start"),
+            char_offset_end=chunk.get("char_offset_end"),
+            contains_numbers=chunk.get("contains_numbers", False),
+            contains_table=chunk.get("contains_table", False),
+            importance_score=chunk.get("importance_score", 0.5),
+        )
+        chunks_count += 1
 
     logger.info("%s: %d pages, %d sections, %d chunks", fk, len(pages), len(sections), chunks_count)
     return chunks_count
