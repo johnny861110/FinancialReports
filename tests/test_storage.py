@@ -177,3 +177,51 @@ class TestPipelineLog:
         store.log_pipeline_run(identity.filing_key, "ingest", "started")
         store.log_pipeline_run(identity.filing_key, "ingest", "completed")
         # Should not raise
+
+
+class TestIdempotentExtraction:
+    """Re-extracting a document must replace its text, not append another copy."""
+
+    def test_clear_document_text_removes_pages_sections_and_chunks(self, store, identity):
+        company_id = store.upsert_company("2330")
+        filing_id = store.upsert_filing(identity, company_id)
+        doc_id = store.save_source_doc(filing_id, "pdf", "/tmp/f.pdf")
+
+        store.save_page(doc_id, 1, "page text", False)
+        section_id = store.save_section(doc_id, "risk", "風險", 1, 2, "內容")
+        store.save_chunk(doc_id, section_id, 1, 0, "chunk content")
+
+        store.clear_document_text(doc_id)
+
+        assert store.get_chunks(identity.filing_key) == []
+        with store.conn() as conn:
+            from sqlalchemy import text
+
+            for table in ("document_pages", "document_sections", "document_chunks"):
+                remaining = conn.execute(
+                    text(f"SELECT COUNT(*) FROM {table} WHERE doc_id=:d"), {"d": doc_id}
+                ).scalar_one()
+                assert remaining == 0, f"{table} still holds rows"
+
+    def test_clearing_also_removes_dependent_embeddings(self, store, identity):
+        """chunk_embeddings references chunks, so it must go first."""
+        from sqlalchemy import text
+
+        company_id = store.upsert_company("2330")
+        filing_id = store.upsert_filing(identity, company_id)
+        doc_id = store.save_source_doc(filing_id, "pdf", "/tmp/f.pdf")
+        chunk_id = store.save_chunk(doc_id, None, 1, 0, "embedded chunk")
+
+        with store.conn() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO chunk_embeddings(chunk_id, model_name, embedding)"
+                    " VALUES(:c, 'test', CAST(:v AS vector))"
+                ),
+                {"c": chunk_id, "v": str([0.0] * 768)},
+            )
+
+        store.clear_document_text(doc_id)
+
+        with store.conn() as conn:
+            assert conn.execute(text("SELECT COUNT(*) FROM chunk_embeddings")).scalar_one() == 0
