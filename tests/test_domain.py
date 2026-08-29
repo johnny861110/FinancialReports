@@ -143,3 +143,71 @@ class TestTaxonomy:
     def test_all_canonical_have_unit(self):
         for field, meta in ALL_CANONICAL.items():
             assert "unit" in meta, f"Field {field} missing unit"
+
+
+class TestChunkSectionAttribution:
+    """Chunks must be attributed to the section that produced them.
+
+    Regression for a duplication bug: extract matched chunks back to sections
+    by (section_type, section_title), so sections sharing that pair each wrote
+    the same chunks again. In the production corpus this duplicated one filing
+    170x -- 65,770 rows carrying 387 distinct passages.
+    """
+
+    @staticmethod
+    def _sections():
+        from src.parsers.pdf_section_parser import DocumentSection
+
+        # Three "notes" sections with the same title, as real filings produce.
+        return [
+            DocumentSection("notes", "附註", 1, 2, "第一段附註內容" * 60),
+            DocumentSection("notes", "附註", 3, 4, "第二段附註內容" * 60),
+            DocumentSection("risk", "風險", 5, 6, "風險揭露內容" * 60),
+        ]
+
+    def test_every_chunk_names_its_source_section(self):
+        from src.parsers.pdf_section_parser import build_chunks
+
+        chunks = build_chunks(self._sections())
+
+        assert chunks
+        assert all("section_index" in chunk for chunk in chunks)
+        assert {chunk["section_index"] for chunk in chunks} == {0, 1, 2}
+
+    def test_sections_sharing_a_title_are_not_conflated(self):
+        """The exact shape that caused the duplication."""
+        from src.parsers.pdf_section_parser import build_chunks
+
+        sections = self._sections()
+        chunks = build_chunks(sections)
+
+        first = [c for c in chunks if c["section_index"] == 0]
+        second = [c for c in chunks if c["section_index"] == 1]
+
+        assert first and second
+        # Same section_type and title, but different content and page ranges.
+        assert first[0]["section_type"] == second[0]["section_type"] == "notes"
+        assert first[0]["section_title"] == second[0]["section_title"] == "附註"
+        assert first[0]["page_start"] != second[0]["page_start"]
+        assert {c["content"] for c in first}.isdisjoint({c["content"] for c in second})
+
+    def test_attributing_by_index_writes_each_chunk_once(self):
+        """Reproduces the old reverse-lookup and shows it over-counts."""
+        from src.parsers.pdf_section_parser import build_chunks
+
+        sections = self._sections()
+        chunks = build_chunks(sections)
+
+        by_index = sum(1 for _ in chunks)
+
+        old_behaviour = 0
+        for section in sections:
+            old_behaviour += sum(
+                1
+                for c in chunks
+                if c["section_type"] == section.section_type
+                and c.get("section_title") == section.title
+            )
+
+        assert by_index == len(chunks)
+        assert old_behaviour > by_index, "the old reverse-lookup must over-count"

@@ -156,7 +156,7 @@ def build_chunks(
     Returns list of chunk dicts.
     """
     chunks: list[dict] = []
-    for section in sections:
+    for section_index, section in enumerate(sections):
         section_chunks = _chunk_text(
             section.content,
             chunk_size=chunk_size,
@@ -165,6 +165,11 @@ def build_chunks(
         for idx, (text_chunk, char_start, char_end) in enumerate(section_chunks):
             chunks.append(
                 {
+                    # Which section produced this chunk. Callers must attribute
+                    # by this index: sections routinely share a
+                    # (section_type, title) pair, so matching on those instead
+                    # attributes one chunk to every section that shares the key.
+                    "section_index": section_index,
                     "section_type": section.section_type,
                     "section_title": section.title,
                     "page_start": section.page_start,
