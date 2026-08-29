@@ -55,6 +55,16 @@ _COMPILED: dict[str, list[re.Pattern]] = {
     for section, patterns in SECTION_PATTERNS.items()
 }
 
+# A monetary figure in a Taiwan filing, which groups digits with commas. Matching on
+# `\d{4,}` alone missed nearly all of them — `2,394,804,250` has no run of four digits —
+# so `contains_numbers` and the table heuristic fired on about 5% of the corpus while a
+# quarter of it was numeric table text.
+_FINANCIAL_NUMBER = re.compile(r"\d{1,3}(?:,\d{3})+|\d{4,}")
+
+# Letters and CJK, i.e. word characters that are not digits or underscore.
+_LETTER = re.compile(r"[^\W\d_]", re.UNICODE)
+_WHITESPACE = re.compile(r"\s+")
+
 
 @dataclass
 class DocumentSection:
@@ -178,7 +188,7 @@ def build_chunks(
                     "content": text_chunk,
                     "char_offset_start": char_start,
                     "char_offset_end": char_end,
-                    "contains_numbers": bool(re.search(r"\d{4,}", text_chunk)),
+                    "contains_numbers": bool(_FINANCIAL_NUMBER.search(text_chunk)),
                     "contains_table": _looks_like_table(text_chunk),
                     "importance_score": _score_chunk(text_chunk, section.section_type),
                 }
@@ -221,28 +231,71 @@ def _looks_like_table(text: str) -> bool:
     if len(lines) < 3:
         return False
     numeric_lines = sum(
-        1 for line in lines if re.search(r"\d{4,}", line) and len(line.split()) >= 3
+        1 for line in lines if _FINANCIAL_NUMBER.search(line) and len(line.split()) >= 3
     )
     return numeric_lines >= 3
 
 
-def _score_chunk(text: str, section_type: str) -> float:
-    """Assign an importance score based on section type and content."""
-    base = {
-        "income_statement": 0.9,
-        "balance_sheet": 0.9,
-        "cash_flow": 0.85,
-        "eps_note": 0.85,
-        "revenue_note": 0.8,
-        "notes": 0.6,
-        "accounting_policy": 0.5,
-        "auditor": 0.5,
-        "equity_statement": 0.7,
-        "risk": 0.6,
-        "other": 0.4,
-    }.get(section_type, 0.5)
+def _legibility(text: str) -> float:
+    """
+    How much of a chunk reads as language rather than table debris, in 0..1.
 
-    # Boost if chunk contains many numbers
-    if re.search(r"\d{6,}", text):
-        base = min(1.0, base + 0.05)
-    return round(base, 2)
+    Two independent ways a chunk turns into debris, both measured here:
+
+    - `letter_ratio` — the share of non-space characters that are letters or CJK.
+      A statement row such as `$ 2,394,804,250 $ 2,127,627,043` is nearly all
+      digits, punctuation and currency marks.
+    - `fragmentation` — the share of whitespace-separated tokens that are a single
+      character. Shattered table text arrives as one character per token.
+
+    The product punishes a chunk that is both number-dense and shattered hardest,
+    while leaving ordinary prose that quotes a few figures essentially untouched.
+    """
+    compact = _WHITESPACE.sub("", text)
+    if not compact:
+        return 0.0
+    letter_ratio = len(_LETTER.findall(compact)) / len(compact)
+    tokens = text.split()
+    fragmentation = (sum(1 for t in tokens if len(t) == 1) / len(tokens)) if tokens else 0.0
+    return max(0.0, min(1.0, letter_ratio * (1.0 - fragmentation)))
+
+
+# A chunk never falls below this fraction of its section's base score, so section
+# ordering still decides between two equally legible chunks.
+_LEGIBILITY_FLOOR = 0.4
+
+_SECTION_BASE_SCORE = {
+    "income_statement": 0.9,
+    "balance_sheet": 0.9,
+    "cash_flow": 0.85,
+    "eps_note": 0.85,
+    "revenue_note": 0.8,
+    "notes": 0.6,
+    "accounting_policy": 0.5,
+    "auditor": 0.5,
+    "equity_statement": 0.7,
+    "risk": 0.6,
+    "other": 0.4,
+}
+
+
+def _score_chunk(text: str, section_type: str) -> float:
+    """
+    Assign an importance score from the section type, scaled by how legible the
+    chunk actually is.
+
+    `importance_score` is the fallback ordering key for evidence retrieval: it decides
+    which passages a filing returns when no embedding is available. Scoring on section
+    type alone made that ranking prefer debris, because table-extraction wreckage
+    concentrates in exactly the sections with the highest base score — a quarter of the
+    corpus scored 0.70 against 0.65 for real prose.
+
+    Rewarding digit density made this marginally worse and was removed. Measured on the
+    19,152-chunk corpus it was close to inert in any case: the old `\\d{6,}` boost fired
+    on 1.0% of debris chunks but 3.2% of prose, because Taiwan filings group digits with
+    commas (`2,394,804,250` has no run of six digits), so it slightly favoured prose by
+    accident while the section base did the real damage.
+    """
+    base = _SECTION_BASE_SCORE.get(section_type, 0.5)
+    factor = _LEGIBILITY_FLOOR + (1.0 - _LEGIBILITY_FLOOR) * _legibility(text)
+    return round(base * factor, 3)
