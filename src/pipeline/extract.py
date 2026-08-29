@@ -211,6 +211,12 @@ def _extract_pdf_sync(
         ).fetchone()
     doc_id = row[0] if row else store.save_source_doc(filing_id, "pdf", pdf_path)
 
+    # Extraction is re-runnable and these tables have no natural key to upsert
+    # against, so clear this document's derived text first. Without it a second
+    # run appends another full copy: one filing here had been extracted three
+    # times and carried exactly three copies of every chunk.
+    store.clear_document_text(doc_id)
+
     # Save pages
     for page in pages:
         store.save_page(doc_id, page.page_number, page.text, page.has_tables)

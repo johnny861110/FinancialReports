@@ -289,6 +289,26 @@ class FilingStore:
                 },
             )
 
+    def clear_document_text(self, doc_id: int) -> None:
+        """Remove a document's derived pages, sections and chunks.
+
+        Extraction is re-runnable, and these tables have no natural key to
+        upsert against, so without clearing first a second run appends a whole
+        new copy instead of replacing the old one. Chunks are removed before
+        sections because chunk_embeddings and document_chunks reference them.
+        """
+        with self.conn() as c:
+            c.execute(
+                text(
+                    "DELETE FROM chunk_embeddings WHERE chunk_id IN ("
+                    " SELECT id FROM document_chunks WHERE doc_id=:did)"
+                ),
+                {"did": doc_id},
+            )
+            c.execute(text("DELETE FROM document_chunks WHERE doc_id=:did"), {"did": doc_id})
+            c.execute(text("DELETE FROM document_sections WHERE doc_id=:did"), {"did": doc_id})
+            c.execute(text("DELETE FROM document_pages WHERE doc_id=:did"), {"did": doc_id})
+
     def save_section(
         self,
         doc_id: int,
