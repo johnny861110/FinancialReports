@@ -398,3 +398,62 @@ class TestScheduleSectionDetection:
     def test_statement_detection_is_unchanged(self):
         page = "合併資產負債表\n民國114年12月31日\n"
         assert self._detect(page) == ("balance_sheet", "合併資產負債表")
+
+
+class TestChunkPageAttribution:
+    """A chunk must cite the page it came from, not its section's first page.
+
+    Sections concatenate their pages, and build_chunks copied the section's
+    page_start onto every chunk it produced. A 149-chunk section spanning pages
+    43-93 reported page 43 for all 149, so every citation into it pointed at
+    the wrong page while still looking well-formed.
+    """
+
+    @staticmethod
+    def _pages(texts, first=1):
+        from src.parsers.pdf_text_parser import PageText
+
+        return [
+            PageText(page_number=first + i, text=t, char_count=len(t), has_tables=False)
+            for i, t in enumerate(texts)
+        ]
+
+    def test_chunks_report_the_page_they_came_from(self):
+        from src.parsers.pdf_section_parser import build_chunks, split_sections
+
+        # One section (no headings), three pages of distinct filler.
+        pages = self._pages(["甲" * 600, "乙" * 600, "丙" * 600], first=41)
+        sections = split_sections(pages)
+        assert len(sections) == 1
+
+        chunks = build_chunks(sections, chunk_size=300, overlap=0)
+        for chunk in chunks:
+            marker = chunk["content"].strip()[0]
+            expected = {"甲": 41, "乙": 42, "丙": 43}[marker]
+            assert chunk["page_start"] == expected, f"{marker} attributed to {chunk['page_start']}"
+
+    def test_a_chunk_spanning_a_page_break_reports_both_pages(self):
+        from src.parsers.pdf_section_parser import build_chunks, split_sections
+
+        pages = self._pages(["甲" * 100, "乙" * 100], first=7)
+        sections = split_sections(pages)
+
+        chunks = build_chunks(sections, chunk_size=600, overlap=0)
+        assert len(chunks) == 1
+        assert (chunks[0]["page_start"], chunks[0]["page_end"]) == (7, 8)
+
+    def test_a_hand_built_section_falls_back_to_its_own_span(self):
+        """page_spans is optional, so callers that never set it still work."""
+        from src.parsers.pdf_section_parser import DocumentSection, build_chunks
+
+        section = DocumentSection(
+            section_type="notes",
+            title="附註",
+            page_start=12,
+            page_end=15,
+            content="內容" * 200,
+        )
+
+        chunks = build_chunks([section], chunk_size=300, overlap=0)
+        assert chunks
+        assert all((c["page_start"], c["page_end"]) == (12, 15) for c in chunks)

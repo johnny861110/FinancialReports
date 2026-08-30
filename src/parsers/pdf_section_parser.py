@@ -6,7 +6,7 @@ Splits document pages into labeled sections and then into overlapping chunks.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from src.parsers.pdf_text_parser import PageText
 
@@ -106,6 +106,45 @@ class DocumentSection:
     page_start: int
     page_end: int
     content: str
+    # Where each page begins and ends inside `content`, as (page_number, start,
+    # end) with end exclusive. Sections concatenate their pages, so without this
+    # a chunk's character offsets cannot be traced back to the page it came
+    # from. Left empty by callers that build a section by hand; chunks then fall
+    # back to the section's own span.
+    page_spans: list[tuple[int, int, int]] = field(default_factory=list)
+
+
+def _join_pages(pages: list[PageText]) -> tuple[str, list[tuple[int, int, int]]]:
+    """Concatenate page texts, recording each page's range in the result."""
+    separator = "\n\n"
+    parts: list[str] = []
+    spans: list[tuple[int, int, int]] = []
+    offset = 0
+    for index, page in enumerate(pages):
+        if index:
+            offset += len(separator)
+        parts.append(page.text)
+        spans.append((page.page_number, offset, offset + len(page.text)))
+        offset += len(page.text)
+    return separator.join(parts), spans
+
+
+def _pages_for_range(
+    spans: list[tuple[int, int, int]], start: int, end: int, fallback: tuple[int, int]
+) -> tuple[int, int]:
+    """The first and last page a half-open character range touches."""
+    touched = [
+        page for page, page_start, page_end in spans if page_start < end and start < page_end
+    ]
+    if not touched:
+        # A range landing entirely in a separator touches no page; attribute it
+        # to the last page that starts at or before it rather than to the whole
+        # section.
+        earlier = [page for page, page_start, _ in spans if page_start <= start]
+        if earlier:
+            return earlier[-1], earlier[-1]
+        return fallback
+    return touched[0], touched[-1]
 
 
 def _detect_section(text: str) -> tuple[str, str] | None:
@@ -150,40 +189,36 @@ def split_sections(pages: list[PageText]) -> list[DocumentSection]:
     current_type = "other"
     current_title = "Document Start"
     current_start = pages[0].page_number
-    current_content_parts: list[str] = []
+    current_pages: list[PageText] = []
 
-    for page in pages:
-        detection = _detect_section(page.text)
-        if detection:
-            # Save previous section
-            if current_content_parts:
-                sections.append(
-                    DocumentSection(
-                        section_type=current_type,
-                        title=current_title,
-                        page_start=current_start,
-                        page_end=page.page_number - 1,
-                        content="\n\n".join(current_content_parts),
-                    )
-                )
-            current_type, current_title = detection
-            current_start = page.page_number
-            current_content_parts = [page.text]
-        else:
-            current_content_parts.append(page.text)
-
-    # Flush last section
-    if current_content_parts:
-        last_page = pages[-1].page_number
+    def flush(page_end: int) -> None:
+        content, spans = _join_pages(current_pages)
         sections.append(
             DocumentSection(
                 section_type=current_type,
                 title=current_title,
                 page_start=current_start,
-                page_end=last_page,
-                content="\n\n".join(current_content_parts),
+                page_end=page_end,
+                content=content,
+                page_spans=spans,
             )
         )
+
+    for page in pages:
+        detection = _detect_section(page.text)
+        if detection:
+            # Save previous section
+            if current_pages:
+                flush(page.page_number - 1)
+            current_type, current_title = detection
+            current_start = page.page_number
+            current_pages = [page]
+        else:
+            current_pages.append(page)
+
+    # Flush last section
+    if current_pages:
+        flush(pages[-1].page_number)
 
     return sections
 
@@ -212,6 +247,16 @@ def build_chunks(
             overlap=overlap,
         )
         for idx, (text_chunk, char_start, char_end) in enumerate(section_chunks):
+            # A chunk covers a few hundred characters of a section that may run
+            # for ninety pages. Copying the section's own page_start onto it --
+            # which is what this did -- makes every citation in that section
+            # point at its first page.
+            page_start, page_end = _pages_for_range(
+                section.page_spans,
+                char_start,
+                char_end,
+                (section.page_start, section.page_end),
+            )
             chunks.append(
                 {
                     # Which section produced this chunk. Callers must attribute
@@ -221,8 +266,8 @@ def build_chunks(
                     "section_index": section_index,
                     "section_type": section.section_type,
                     "section_title": section.title,
-                    "page_start": section.page_start,
-                    "page_end": section.page_end,
+                    "page_start": page_start,
+                    "page_end": page_end,
                     "chunk_index": idx,
                     "content": text_chunk,
                     "char_offset_start": char_start,
