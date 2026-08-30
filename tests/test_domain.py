@@ -350,3 +350,51 @@ class TestUprightFlagRepair:
         chars, fixed = _deskew_upright_flags([{"text": "x", "upright": False}])
 
         assert fixed == 0
+
+
+class TestScheduleSectionDetection:
+    """Supplementary schedules (附表) must be their own section.
+
+    Without this they were absorbed by whatever section preceded them: one
+    filing carried a 92-page "accounting_policy" section that was mostly
+    endorsements, securities held and related-party transactions.
+    """
+
+    @staticmethod
+    def _detect(text):
+        from src.parsers.pdf_section_parser import _detect_section
+
+        return _detect_section(text)
+
+    def test_schedule_header_page_starts_a_schedule(self):
+        page = (
+            "鴻海精密工業股份有限公司及子公司\n"
+            "期末持有之重大有價證券\n"
+            "民國114年12月31日\n"
+            "附表三\n"
+            "單位：新台幣仟元\n"
+        )
+        assert self._detect(page) == ("schedule", "附表三")
+
+    def test_cross_reference_is_not_a_schedule_boundary(self):
+        """Body text pointing at a schedule must not split the notes."""
+        page = (
+            "4.與關係人進、銷貨之金額達新臺幣一億元或實收資本額百分之二十以上：請詳附表四。\n"
+            "5.應收關係人款項達新臺幣一億元以上：請詳附表五。\n"
+        )
+        assert self._detect(page) is None
+
+    def test_continuation_page_inherits_rather_than_restarting(self):
+        """A schedule's later pages do not repeat the header block."""
+        page = "編號 公司名稱 關係 背書保證金額\n附表二\n(續)\n"
+        assert self._detect(page) is None
+
+    def test_marker_beyond_the_800_character_window_is_still_found(self):
+        """Schedule markers average character 982; the window would miss them."""
+        page = "填充" * 500 + "\n民國114年12月31日\n附表七\n單位：新台幣仟元\n"
+        assert len(page) > 800
+        assert self._detect(page) == ("schedule", "附表七")
+
+    def test_statement_detection_is_unchanged(self):
+        page = "合併資產負債表\n民國114年12月31日\n"
+        assert self._detect(page) == ("balance_sheet", "合併資產負債表")

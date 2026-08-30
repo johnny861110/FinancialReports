@@ -49,6 +49,37 @@ SECTION_PATTERNS: dict[str, list[str]] = {
     "risk": [r"風險管理"],
 }
 
+# Supplementary schedules (附表) are their own thing: endorsements, securities
+# held, related-party purchases and sales, loans to others. They carry no
+# heading the statement patterns above recognise, so without this every one of
+# them was absorbed by whatever section preceded it -- one filing had a
+# 92-page "accounting_policy" section that was mostly schedules.
+#
+# Detection needs all three parts, measured over 7,875 pages:
+#   * the marker alone fires on 1,317 pages, but 136 of those are body text
+#     saying "請詳附表四" -- a cross-reference, not a schedule;
+#   * requiring a schedule header (unit line or 民國 date) leaves 479 genuine
+#     starts;
+#   * the 702 marker pages without a header are continuations that do not
+#     repeat it -- 75% fall within 12 pages of a start -- and correctly inherit
+#     the section rather than beginning a new one.
+_SCHEDULE_MARKER = re.compile(r"附表[一二三四五六七八九十]", re.MULTILINE)
+_SCHEDULE_HEADER = re.compile(r"單位：新台幣|民國[0-9一二三四五六七八九十]+年", re.MULTILINE)
+_SCHEDULE_CROSSREF = re.compile(r"[詳見參閱][^。]{0,6}附表", re.MULTILINE)
+
+
+def _detect_schedule(text: str) -> tuple[str, str] | None:
+    """Detect the first page of a supplementary schedule."""
+    if not _SCHEDULE_MARKER.search(text):
+        return None
+    if _SCHEDULE_CROSSREF.search(text):
+        return None
+    if not _SCHEDULE_HEADER.search(text):
+        return None
+    match = _SCHEDULE_MARKER.search(text)
+    return "schedule", match.group(0) if match else "附表"
+
+
 # Pre-compiled patterns for speed (MULTILINE so \n works in patterns)
 _COMPILED: dict[str, list[re.Pattern]] = {
     section: [re.compile(p, re.MULTILINE) for p in patterns]
@@ -84,8 +115,16 @@ def _detect_section(text: str) -> tuple[str, str] | None:
 
     Only examines the first 800 characters of the page so that
     incidental keyword mentions deep inside body text don't trigger
-    a false section boundary.
+    a false section boundary. Schedules are the exception: their marker
+    averages character 982 on a page, because these are wide landscape
+    tables whose extraction order puts the heading block late. They are
+    matched over the whole page instead, and rely on the cross-reference
+    exclusion rather than position to avoid false boundaries.
     """
+    schedule = _detect_schedule(text)
+    if schedule:
+        return schedule
+
     search_window = text[:800]
     for section_type, patterns in _COMPILED.items():
         for pattern in patterns:
