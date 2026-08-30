@@ -211,3 +211,142 @@ class TestChunkSectionAttribution:
 
         assert by_index == len(chunks)
         assert old_behaviour > by_index, "the old reverse-lookup must over-count"
+
+
+# A shattered statement row, as pdfplumber emitted it when a character was
+# misflagged as rotated: one character per line.
+_SHATTERED = "\n".join("1成累1折淨33成累月月月月本計舊兌本計1133日折日費換")
+# A dense but intact statement row.
+_TABLE_ROW = "貨幣市場基金 17,984,089 2,826,701 2,979,055\n附買回交易 2,107,626 2,126,975\n$ 2,394,804,250 $ 2,127,627,043 $ 1,698,195,704"
+# Ordinary narrative disclosure.
+_PROSE = "本集團持有之投資性不動產座落在中國大陸，於民國一一三年三月三十一日之公允價值係參考地方市政府房產信息中心評價資料，並加以調整，屬第三等級公允價值。"
+
+
+class TestChunkLegibilityScoring:
+    """`importance_score` must not rank table debris above real prose.
+
+    A quarter of the production corpus was table-extraction wreckage scoring 0.70
+    against 0.65 for prose, because scoring read only the section type and the
+    wreckage concentrates in the highest-scoring statement sections. It therefore
+    won the fallback ordering that decides which passages a filing returns when no
+    embedding is available.
+    """
+
+    @staticmethod
+    def _score(text, section_type):
+        from src.parsers.pdf_section_parser import _score_chunk
+
+        return _score_chunk(text, section_type)
+
+    def test_shattered_text_scores_below_prose_in_a_weaker_section(self):
+        """The regression: debris in a 0.9 section beat prose in a 0.6 section."""
+        assert self._score(_SHATTERED, "balance_sheet") < self._score(_PROSE, "notes")
+
+    def test_dense_table_row_scores_below_prose_in_a_weaker_section(self):
+        assert self._score(_TABLE_ROW, "balance_sheet") < self._score(_PROSE, "notes")
+
+    def test_section_ranking_survives_between_equally_legible_chunks(self):
+        """Legibility must reorder debris, not flatten the section hierarchy."""
+        assert self._score(_PROSE, "balance_sheet") > self._score(_PROSE, "notes")
+        assert self._score(_PROSE, "notes") > self._score(_PROSE, "other")
+
+    def test_score_stays_within_its_section_base(self):
+        from src.parsers.pdf_section_parser import _SECTION_BASE_SCORE
+
+        for section, base in _SECTION_BASE_SCORE.items():
+            for text in (_PROSE, _TABLE_ROW, _SHATTERED):
+                assert 0.0 < self._score(text, section) <= base
+
+    def test_digit_density_is_no_longer_rewarded(self):
+        """Appending figures to prose must never raise its score."""
+        assert self._score(_PROSE + " 2,394,804,250", "notes") <= self._score(_PROSE, "notes")
+
+    def test_empty_chunk_does_not_raise(self):
+        assert self._score("", "notes") >= 0.0
+
+
+class TestFinancialNumberDetection:
+    """Taiwan filings group digits with commas, so `\\d{4,}` missed nearly every figure."""
+
+    def test_comma_grouped_figure_counts_as_a_number(self):
+        from src.parsers.pdf_section_parser import _FINANCIAL_NUMBER
+
+        assert _FINANCIAL_NUMBER.search("$ 2,394,804,250")
+        assert _FINANCIAL_NUMBER.search("17,984,089")
+
+    def test_ungrouped_long_run_still_counts(self):
+        from src.parsers.pdf_section_parser import _FINANCIAL_NUMBER
+
+        assert _FINANCIAL_NUMBER.search("2394804250")
+
+    def test_small_bare_integers_do_not_count(self):
+        from src.parsers.pdf_section_parser import _FINANCIAL_NUMBER
+
+        assert not _FINANCIAL_NUMBER.search("第 3 項")
+
+    def test_chunk_of_statement_rows_is_flagged_as_a_table(self):
+        from src.parsers.pdf_section_parser import DocumentSection, build_chunks
+
+        chunks = build_chunks([DocumentSection("balance_sheet", "資產負債表", 1, 1, _TABLE_ROW)])
+
+        assert chunks
+        assert chunks[0]["contains_numbers"]
+        assert chunks[0]["contains_table"]
+
+
+class TestUprightFlagRepair:
+    """pdfminer's `upright` test is exact, so a negligible font-matrix skew
+    misflags ordinary horizontal text as rotated. pdfplumber then lays it out as
+    vertical text and emits one character per line — the character soup that made
+    a quarter of the chunk corpus unreadable.
+    """
+
+    @staticmethod
+    def _char(matrix, upright):
+        return {"text": "成", "matrix": matrix, "upright": upright}
+
+    def test_negligible_skew_is_treated_as_upright(self):
+        """The exact matrix observed in a production filing.
+
+        pdfminer computes `b * c <= 0`; here both terms are tiny and negative, so
+        their product is +3.1e-15 and the character is called rotated.
+        """
+        from src.parsers.pdf_text_parser import _deskew_upright_flags
+
+        matrix = (1.000887888, -1.1968242e-07, -2.573156e-08, 0.999917472, 0, 0)
+        chars, fixed = _deskew_upright_flags([self._char(matrix, False)])
+
+        assert fixed == 1
+        assert chars[0]["upright"] is True
+
+    def test_genuinely_rotated_text_is_left_alone(self):
+        from src.parsers.pdf_text_parser import _deskew_upright_flags
+
+        # A true 90° rotation: the off-diagonal terms carry the scale.
+        chars, fixed = _deskew_upright_flags([self._char((0, 1, -1, 0, 0, 0), False)])
+
+        assert fixed == 0
+        assert chars[0]["upright"] is False
+
+    def test_upright_characters_are_untouched(self):
+        from src.parsers.pdf_text_parser import _deskew_upright_flags
+
+        chars, fixed = _deskew_upright_flags([self._char((1, 0, 0, 1, 0, 0), True)])
+
+        assert fixed == 0
+
+    def test_input_characters_are_not_mutated(self):
+        """The page caches its char dicts; repair must copy."""
+        from src.parsers.pdf_text_parser import _deskew_upright_flags
+
+        original = self._char((1.0008, -1.19e-07, -2.57e-08, 0.9999, 0, 0), False)
+        _deskew_upright_flags([original])
+
+        assert original["upright"] is False
+
+    def test_missing_matrix_is_ignored(self):
+        from src.parsers.pdf_text_parser import _deskew_upright_flags
+
+        chars, fixed = _deskew_upright_flags([{"text": "x", "upright": False}])
+
+        assert fixed == 0
