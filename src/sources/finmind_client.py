@@ -32,7 +32,6 @@ _FINMIND_TO_CANONICAL: dict[str, str] = {
     "IncomeAfterTaxes": "net_income",
     "IncomeAfterTax": "net_income",  # bank variant
     "IncomeFromContinuingOperations": "net_income",  # bank variant
-    "EquityAttributableToOwnersOfParent": "net_income_attributable_to_parent",
     "EPS": "eps_basic",
     "BasicEPS": "eps_basic",
     "DilutedEPS": "eps_diluted",
@@ -56,6 +55,16 @@ _FINMIND_TO_CANONICAL: dict[str, str] = {
     "CurrentLiabilities": "current_liabilities",
     "Liabilities": "total_liabilities",
     "Equity": "equity",
+    # FinMind emits two spellings for the same balance-sheet concept. The short
+    # one used to be mapped to net_income_attributable_to_parent, which put an
+    # equity figure into an income-statement field: 3661_2025Q1 reported
+    # 41,588,114 against a net_income of 1,461,343 -- 28x the total, and equal
+    # to `equity` 41,607,063 less non-controlling interests. taxonomy.py is the
+    # authority and assigns this tag to equity_attributable_to_parent; the
+    # income field's tag is ProfitLossAttributableToOwnersOfParent, which
+    # FinMind does not supply. So net_income_attributable_to_parent is now
+    # simply unpopulated from FinMind, which is correct -- absent beats wrong.
+    "EquityAttributableToOwnersOfParent": "equity_attributable_to_parent",
     "EquityAttributableToOwnersOfParentCompany": "equity_attributable_to_parent",
     "RetainedEarnings": "retained_earnings",
     "CapitalStock": "share_capital",  # FinMind actual key
