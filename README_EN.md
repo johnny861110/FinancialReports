@@ -151,6 +151,20 @@ retryability from the status class.
 > Mind the port: compose publishes `POSTGRES_PORT` from `.env`, which is not
 > always 5432.
 
+> **Container-level checks live in `scripts/container_smoke.sh`.** Unit tests
+> cannot see what is missing from an image: without the `pdf` extra, extraction
+> produced 0 chunks and reported success while the suite stayed green, because
+> pdfplumber is installed in the dev environment. This asserts against the
+> **running container** and the **live API** — reading the environment the
+> process actually has via `docker exec printenv` (compose substitutes from
+> `.env`, so the two can disagree), checking that imports resolve inside the
+> image including that removed dependencies are really gone, and exercising the
+> API surfaces. Expected values are derived from the API, never hardcoded, so a
+> re-ingest cannot turn it red for the wrong reason.
+>
+> 24 checks. **Watch it fail before trusting the green:**
+> `docker compose stop api` should produce 14 failures and exit 1.
+
 ### Single Filing
 
 ```bash

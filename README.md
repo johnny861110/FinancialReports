@@ -147,6 +147,15 @@ uv run uvicorn src.api.app:create_app --factory --host 127.0.0.1 --port 8010
 >
 > 注意連接埠:compose 使用 `.env` 的 `POSTGRES_PORT`,不一定是 5432。
 
+> **容器層的檢查用 `scripts/container_smoke.sh`。** 單元測試看不到 image 裡少
+> 了什麼:`pdf` extra 缺失時,萃取會產出 0 chunks 卻回報成功,而測試全綠 ——
+> 因為開發環境裡 pdfplumber 是裝著的。這個腳本對**執行中的容器**與**實際 API**
+> 斷言:用 `docker exec printenv` 讀取行程真正拿到的環境(compose 會從 `.env`
+> 代換,兩者可能不一致)、驗證 image 內 import 是否成立(含已移除的相依確實不
+> 在)、以及 API 表面行為。預期值一律從 API 取得而非寫死,重新萃取不會誤判。
+>
+> 24 項檢查。**信任綠燈之前先看它紅過:** `docker compose stop api` 後應有 14 項失敗、exit 1。
+
 ### 單筆執行
 
 ```bash
