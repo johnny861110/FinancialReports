@@ -79,6 +79,25 @@ async def run_ingest_async(
                     path.stat().st_size,
                 )
 
+        # Obtaining no document at all is a failure, not a quiet success. Every
+        # download is individually optional -- _try_xbrl and friends return None
+        # rather than raising, because a filing legitimately may have no XBRL --
+        # so all three returning None used to be indistinguishable from a good
+        # run: the filing was marked "ingested", the stage logged "completed",
+        # extract then had nothing to read, and insights still produced cards
+        # from the FinMind fact fallback. Four filings in the corpus reached
+        # "insight_ready" that way, one of them reporting a 0.8176 quality score
+        # with no source document and no retrievable text behind it.
+        #
+        # Raising leaves the filing at its previous status, so an ordinary
+        # (non-forced) re-run retries it instead of skipping it forever, and the
+        # handler below records the reason on pipeline_runs.
+        if not any((xbrl_path, ixbrl_path, pdf_path)):
+            raise RuntimeError(
+                f"no source document could be obtained for {fk} "
+                "(XBRL, iXBRL and PDF all unavailable)"
+            )
+
         # 4. Update status
         await loop.run_in_executor(None, store.update_filing_status, filing_id, "ingested")
         store.log_pipeline_run(fk, "ingest", "completed")
