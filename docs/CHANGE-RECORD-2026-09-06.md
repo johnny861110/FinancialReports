@@ -343,10 +343,12 @@ a contract change and the ceiling is presently a documentation problem.
 
 Deliberately not addressed. Listed so they are not lost.
 
+Ordered by how quietly they fail, most first.
+
 | Item | Detail |
 |---|---|
+| **`quality_score` states no maximum over the wire** | **Top of the next list.** §6b documents the ~0.818 ceiling for anyone reading the code, but a consumer still receives `0.8176` with no maximum attached and reasonably reads it as 82% of achievable. That is the same silent-wrongness this pass removed from values, surviving in a metric. Documentation closes it for the reader and not for the caller. The fix is a `quality_score_max` field alongside the score; it is small, and it was held back only because adding a contract change at wrap-up turns a clean stopping point into a half-finished one. |
 | `fact_evidence` never written | Read by `/evidence` and by `quality_score`; 0 rows. Costs a flat 0.10 of every score (see §6b for the full ceiling). Deferred on its own merits: writing evidence recovers at most 0.10 and is real work. Decide it when someone wants `/evidence` to function. |
-| `7418_2026Q1` still `insight_ready` | Its re-ingest failed correctly and the reason is recorded, but the new guard prevents a filing *advancing* on failure; it does not demote one the old code already advanced. The filing presents as ready with zero documents. |
 | `text_summaries`, `insight_evidence` | Defined in schema and SPEC, referenced by no code, 0 rows. |
 | `source_documents.checksum` | Read by the API and exposed in the contract, never written — 67/67 NULL. Removing it is a contract change. |
 | `document_pages` | 7,875 rows, 16 MB, INSERT/DELETE only with no `SELECT` anywhere. Page-level granularity exists and nothing retrieves at it — an unused retrieval asset rather than dead weight. |
@@ -361,9 +363,12 @@ Deliberately not addressed. Listed so they are not lost.
 ## 8. Verification performed
 
 - `ruff check`, `ruff format --check`, `mypy` — clean.
-- **136 tests passing** against a real PostgreSQL, up from 122. New coverage:
+- **144 tests passing** against a real PostgreSQL, up from 122. New coverage:
   four retrieval states, seven section-labelling cases, three ingest-failure
-  cases (`tests/test_pipeline.py` is the first test file for the ingest stage).
+  cases (`tests/test_pipeline.py` is the first test file for the ingest stage),
+  the no-source-documents invariant and its demotion path, `corpus_version`
+  moving when the corpus changes, the FinMind unit conversion including the
+  sub-NT$1,000 case the old guard mis-scaled, and the 409 contract.
 - Dependency removal proven behaviourally in an environment holding only base
   and dev dependencies.
 - The `pdf`-extra fix proven end to end inside the container against a
@@ -373,3 +378,17 @@ Deliberately not addressed. Listed so they are not lost.
   database 188 MB.
 - Container: healthy, running as `appuser`, `/health/ready` ready,
   `/v1/stocks` returns 15 companies.
+- All three document-less filings return `409 filing_has_no_source_documents`
+  with `retryable: false` on **both** `/snapshot` and `/context`.
+- Cross-checked end to end from the consuming project through the real stack —
+  browser, live LLM, this container. Two results worth recording: a query
+  against an empty filing now degrades to a stated data gap rather than an
+  error, and 「資本管理政策為何？」 against 3661/2025Q1 — a question that was
+  being silently discarded that morning — returns an answer grounded on
+  現金流量資訊, 合併基礎 and 財務風險管理目的與政策.
+- That end-to-end pass also caught a defect no unit test would have: the 409
+  was handled on one consumer path and not the other, so an internal host,
+  port and percent-encoded query string were being rendered into a user-facing
+  data-gap list. Fixed consumer-side. Worth remembering that the last two
+  defects of the day were both found by running the whole thing, not by
+  testing the parts.
