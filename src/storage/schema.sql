@@ -238,7 +238,17 @@ CREATE INDEX IF NOT EXISTS idx_insight_evidence_card  ON insight_evidence(card_i
 CREATE INDEX IF NOT EXISTS idx_validation_filing      ON validation_results(filing_id);
 CREATE INDEX IF NOT EXISTS idx_pipeline_filing_key    ON pipeline_runs(filing_key);
 
--- Approximate nearest-neighbour index for question-directed retrieval.
--- Cosine distance, matching the normalised embeddings `fr embed` writes.
-CREATE INDEX IF NOT EXISTS idx_chunk_embeddings_hnsw
-    ON chunk_embeddings USING hnsw (embedding vector_cosine_ops);
+-- No ANN index on chunk_embeddings, deliberately. HNSW trades recall for speed,
+-- and there is nothing here to buy: every retrieval query filters to a single
+-- filing_key (123 chunks for 3661_2025Q1, ~900 for the widest), so Postgres
+-- fetches that filing's embeddings by primary key and sorts them exactly in
+-- ~3ms. An approximate scan over all 19,767 vectors followed by post-filtering
+-- to one filing is both slower and lossier: the planner refused the index even
+-- with enable_seqscan off. Exact search is the higher-quality choice at this
+-- scale, not merely an acceptable one.
+--
+-- If retrieval ever goes cross-filing ("search every company for X"), or a
+-- single filing grows large enough that exact scan stops being cheap, add it
+-- back with:
+--   CREATE INDEX idx_chunk_embeddings_hnsw
+--       ON chunk_embeddings USING hnsw (embedding vector_cosine_ops);
