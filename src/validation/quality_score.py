@@ -54,12 +54,25 @@ def compute_quality_score(filing_key: str, store: FilingStore) -> float:
     Compute a 0.0–1.0 data quality score for a filing.
 
     Breakdown:
-      40% — XBRL source coverage of canonical fields
+      40% — structured source coverage of canonical fields
       30% — Completeness (non-null key fields)
       20% — Validation rule pass rate
       10% — Evidence records exist for facts
 
-    Returns score between 0.0 and 1.0.
+    The range is 0.0–1.0 but 1.0 is not reachable in the current design, and
+    that is not a defect to be chased:
+
+      * Source coverage counts distinct canonical fields carrying a structured
+        fact. FinMind is the only structured source by deliberate choice, and it
+        does not supply every canonical field -- a typical filing covers 27 of
+        34, costing 0.40 × 7/34 ≈ 0.082.
+      * Evidence coverage is 0 for every filing, because nothing writes
+        fact_evidence. That costs the full 0.10.
+
+    So a filing that is otherwise perfect scores about 0.818, and the observed
+    corpus maximum is exactly that. Read the score as a relative measure between
+    filings rather than as a percentage of some attainable ideal. Changing
+    either term means changing what the score means, so do it deliberately.
     """
     facts = store.get_facts(filing_key)
     if not facts:

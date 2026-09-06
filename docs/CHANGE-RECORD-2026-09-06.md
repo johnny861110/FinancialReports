@@ -22,7 +22,7 @@ written to keep going quietly rather than to fail or disclose.
 | api container, `extract` | stage `completed`, filing `extracted` | `pdfplumber` absent → 0 pages, 0 chunks |
 | `ingest` | stage `completed`, filing reaches `insight_ready` | all downloads returned `None`; no document obtained |
 | `/context` retrieval | evidence chunks with sections and page numbers | embedding model absent → no semantic search ran |
-| `quality_score` | a score, e.g. `0.8176` | 10% of it is a term that is structurally always 0 |
+| `quality_score` | a score, e.g. `0.8176`, with no stated maximum | two terms are structurally short, so 0.818 *is* full marks |
 
 Each is individually defensible: import guards keep the API answering when
 optional extras are missing, `if path:` avoids writing rows for documents that
@@ -33,7 +33,8 @@ Three rules came out of it, and the first two are now implemented:
 
 1. A stage may not report `completed` having produced nothing.
 2. A composite score may not silently include a term that cannot be computed.
-   *(Not done — see §7.)*
+   *(Addressed by documentation rather than by changing the score — the ceiling
+   is now stated where the score is defined and specified. See §6b.)*
 3. A degraded path must mark its output as degraded where the caller sees it.
 
 ---
@@ -283,13 +284,68 @@ to the GPU.
 
 ---
 
+## 6b. FinMind is the structured source — settled, not a gap
+
+Recorded prominently because everything measured on 2026-09-06 points at this
+like a defect, and the next person to look will otherwise try to "fix" it.
+
+**Every fact in the corpus has `source_type` = `finmind`. Zero XBRL, zero
+iXBRL. No filing holds an XBRL or iXBRL source document at all — all 67
+documents are PDFs.** The XBRL and iXBRL parsers have never produced a fact.
+
+This is a deliberate architectural choice, confirmed with the project owner.
+The project uses the FinMind API for structured data on purpose; PDFs supply
+the text that retrieval runs over. It is **not** an ingestion failure and not
+a parser defect.
+
+It looks like one from the inside, which is why it is written down here and in
+three other places (`src/sources/finmind_client.py`, `src/pipeline/extract.py`,
+`SPEC.md` §2.4):
+
+- `financial_facts` has an `xbrl_tag` column, populated with FinMind's key names
+- `taxonomy.py` lists `xbrl_tags` for every canonical field
+- `extract.py` has an XBRL branch that never fires, and its comment calls
+  FinMind a "fallback"
+- `schema.sql`, the SPEC source table, and the pipeline docs all name XBRL first
+- the quality score docks marks for source coverage FinMind cannot supply
+
+Note the shape of the original diagnosis, because it changed the cost estimate
+by an order of magnitude: the first reading was "the XBRL parser has never
+worked", which is a parser project. The measurement showed no XBRL *document*
+was ever obtained, which would have been a download question — and the answer
+turned out to be that neither is broken, because neither was ever meant to run.
+
+### The quality-score ceiling follows from it
+
+`quality_score` cannot reach 1.0, and that is by design rather than a
+deficiency to chase:
+
+| Term | Current state | Cost |
+|---|---|---|
+| source coverage (40%) | FinMind is the only structured source and supplies 27 of 34 canonical fields on a typical filing | 0.40 × 7/34 ≈ 0.082 |
+| evidence coverage (10%) | nothing writes `fact_evidence`, so it is 0 for every filing | 0.100 |
+
+An otherwise-perfect filing therefore scores **≈ 0.818**, and the observed
+corpus maximum is exactly 0.8176. Verified by decomposition: filings grouped by
+covered-field count each hit their own theoretical maximum precisely — 27
+covered → 0.8176, 21 covered → 0.7471.
+
+Read the score as a *relative* measure between filings, not as a percentage of
+an attainable ideal. This is documented where the score is defined
+(`src/validation/quality_score.py`) and where it is specified (SPEC §12). If it
+should instead state its own maximum in the response, the natural shape is a
+`quality_score_max` field alongside it — deliberately not added, because it is
+a contract change and the ceiling is presently a documentation problem.
+
+---
+
 ## 7. Known-open items
 
 Deliberately not addressed. Listed so they are not lost.
 
 | Item | Detail |
 |---|---|
-| `fact_evidence` never written | Read by `/evidence` and by `quality_score`; 0 rows against 1,820 facts. 10% of every quality score is structurally 0, so **no filing can score above 0.9**. Product decision. |
+| `fact_evidence` never written | Read by `/evidence` and by `quality_score`; 0 rows. Costs a flat 0.10 of every score (see §6b for the full ceiling). Deferred on its own merits: writing evidence recovers at most 0.10 and is real work. Decide it when someone wants `/evidence` to function. |
 | `7418_2026Q1` still `insight_ready` | Its re-ingest failed correctly and the reason is recorded, but the new guard prevents a filing *advancing* on failure; it does not demote one the old code already advanced. The filing presents as ready with zero documents. |
 | `text_summaries`, `insight_evidence` | Defined in schema and SPEC, referenced by no code, 0 rows. |
 | `source_documents.checksum` | Read by the API and exposed in the contract, never written — 67/67 NULL. Removing it is a contract change. |

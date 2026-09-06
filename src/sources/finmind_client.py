@@ -1,5 +1,17 @@
 """
-FinMind API client — scrapes structured financial data for Taiwan listed companies.
+FinMind API client — the structured financial data source for this project.
+
+FinMind is the *primary* source of canonical facts, by deliberate choice, not a
+fallback for XBRL. Every fact in the corpus carries source_type "finmind" and no
+filing holds an XBRL or iXBRL source document; that is the expected shape of
+this system. Code elsewhere still speaks of an "XBRL fallback" for historical
+reasons and the XBRL parsers still exist, but nothing feeds them today.
+
+This matters because the absence looks exactly like a bug from the inside: the
+schema has xbrl_tag columns, the taxonomy lists XBRL tags per field, the
+pipeline has an XBRL branch that never fires, and the quality score docks marks
+for source coverage FinMind cannot supply. Before "fixing" any of that, note
+that the source decision is settled -- see docs/CHANGE-RECORD-2026-09-06.md.
 
 Free tier: no auth required, rate-limited.
 Datasets used:

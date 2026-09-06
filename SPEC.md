@@ -135,6 +135,16 @@ uv run fr ask "<question>" --stock <code> --year <year> --quarter <quarter>
 | XBRL | MOPS API | `data/raw/` |
 | iXBRL | MOPS API | `data/raw/` |
 
+> **結構化數據來自 FinMind API,不是 XBRL。** 這是刻意的架構選擇。
+> 語料庫中每一筆 fact 的 `source_type` 都是 `finmind`,沒有任何申報持有
+> XBRL 或 iXBRL 來源文件——PDF 用於文字檢索,FinMind 提供全部的
+> canonical facts。上表的 XBRL/iXBRL 列描述的是 ingest 會嘗試的來源,
+> 而非實際供應數據的來源。
+>
+> 這一點在程式碼內部看起來非常像 bug:schema 有 `xbrl_tag` 欄位、
+> taxonomy 為每個欄位列出 XBRL tags、pipeline 有一個從不觸發的 XBRL 分支。
+> 在「修正」這些之前,請先確認來源決策已經定案。
+
 **Period Code 對照：**
 - Q1 → `{year}01`（例如 `202401`）
 - Q2 → `{year}02`
@@ -1150,6 +1160,17 @@ validation_score = max(0, passed_rules / total_rules - error_count × 0.1)
 
 evidence_coverage = (有 fact_evidence 記錄的 facts) / (總 facts 數)
 ```
+
+**分數上限低於 1.0,且是設計使然,不是缺陷:**
+
+| 分項 | 現況 | 損失 |
+|------|------|------|
+| `xbrl_coverage`(實為結構化來源覆蓋率) | FinMind 為唯一結構化來源,典型申報覆蓋 34 個 canonical 欄位中的 27 個 | 0.40 × 7/34 ≈ 0.082 |
+| `evidence_coverage` | 沒有任何程式寫入 `fact_evidence`,恆為 0 | 0.10 |
+
+因此一份其他方面完美的申報約為 **0.818**,而實際語料庫觀測到的最高分正是
+0.8176。請把這個分數當作申報之間的**相對**指標,而不是「距離某個可達成的
+理想值還差多少」。要改變任一分項,等於改變分數的定義,請刻意為之。
 
 ---
 
