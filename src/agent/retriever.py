@@ -61,7 +61,7 @@ class ChunkRetriever:
         limit: int = 10,
     ) -> list[dict]:
         """
-        SQLite LIKE-based keyword search over chunk content.
+        LIKE-based keyword search over chunk content.
         Returns up to `limit` matching chunks ordered by importance_score desc.
         """
         from sqlalchemy import text

@@ -71,11 +71,15 @@ uv sync --extra pdf
 
 | Extra | 安裝指令 | 啟用功能 | 套件 |
 |-------|----------|----------|------|
-| `pdf` | `uv sync --extra pdf` | PDF 文字與表格萃取 | pdfplumber, pypdfium2 |
-| `ocr` | `uv sync --extra ocr` | 掃描版 PDF 識別 | PaddleOCR, OpenCV |
-| `vector` | `uv sync --extra vector` | 產生 chunk 向量（`fr embed`） | sentence-transformers |
-| `llm` | `uv sync --extra llm` | 自然語言問答 | openai, tiktoken |
-| `all` | `uv sync --extra all` | 全部功能 | — |
+| `pdf` | `uv sync --extra pdf` | PDF 文字與表格萃取 | pdfplumber |
+| `vector` | `uv sync --extra vector` | 產生 chunk 向量（`fr embed`） | sentence-transformers, torch |
+| `llm` | `uv sync --extra llm` | 自然語言問答 | openai |
+| `all` | `uv sync --extra all` | 以上全部 | pdf + vector + llm |
+
+> **`fr embed` 有 GPU 就在 host 跑。** 容器刻意釘 CPU-only torch（compose 未設
+> GPU passthrough，這讓 image 少約 5GB，而 API 本身不做 embedding）。但 `fr embed`
+> 是離線批次工作，沒有理由在容器裡跑。實測 RTX 3060：容器 CPU 約 128 chunk/分，
+> host GPU 約 2,150 chunk/分，約 17 倍。指令可續跑，中途換機器不會重做。
 
 **環境變數（`.env`）：**
 
@@ -97,19 +101,13 @@ FINMIND_TOKEN=              # FinMind 付費 token（免費層不需要）
 ```bash
 cp .env.example .env          # 視需要調整帳密與連接埠
 docker compose up -d db       # 啟動 pgvector/pgvector:pg16
-export FR_DATABASE_URL="postgresql+psycopg://financial:financial@localhost:5432/financial"
+export FR_DATABASE_URL="postgresql+psycopg://financial:financial@localhost:${POSTGRES_PORT:-5432}/financial"
 ```
+
+連接埠要跟 `.env` 的 `POSTGRES_PORT` 一致；若 5432 已被本機其他 Postgres 佔用，
+在 `.env` 改成別的值（compose 與上面的 `FR_DATABASE_URL` 都會跟著走）。
 
 首次連線會自動依 `src/storage/schema.sql` 建立資料表。
-
-若有舊版 SQLite 資料庫，用一次性搬遷腳本轉入。腳本會保留主鍵（`document_chunks.id`
-是 API 對外暴露的 chunk 識別碼，重新編號會讓引用失效），並在結束時比對每張表的
-筆數與 `max(id)`：
-
-```bash
-uv run python scripts/migrate_sqlite_to_postgres.py \
-    --sqlite data/financial.db --url "$FR_DATABASE_URL"
-```
 
 ### 啟動 HTTP API v1
 
@@ -518,9 +516,9 @@ revenue_growth      | 營收成長分析      | YoY 成長 16.5%，超越市場�
 | `source_documents` | 下載文件記錄（路徑、大小、checksum） |
 | `fact_evidence` | 財務數字的原始文件佐證 |
 | `document_pages` | PDF 全頁文字內容 |
-| `document_sections` | PDF 章節切分（損益表、資產負債表等） |
+| `document_sections` | PDF 章節切分；報表型別加編號附註，`title` 存標題原文 |
 | `document_chunks` | RAG 文字片段（~600 字/片段） |
-| `chunk_embeddings` | chunk 向量 `VECTOR(768)` + HNSW cosine 索引，由 `fr embed` 產生 |
+| `chunk_embeddings` | chunk 向量 `VECTOR(768)`，由 `fr embed` 產生；刻意不建 ANN 索引 |
 | `validation_results` | 七條驗證規則執行結果 |
 | `text_summaries` | 文字摘要 |
 | `insight_evidence` | 洞察卡片的佐證連結 |
@@ -723,7 +721,6 @@ FinancialReports/
 │   ├── batch_query.json              # 查詢批次設定
 │   └── semiconductor_batch.json      # 半導體族群批次設定
 ├── data/
-│   ├── financial.db                  # 舊 SQLite 資料庫（僅供一次性搬遷）
 │   ├── raw/                          # 下載的 XBRL / iXBRL 暫存
 │   └── financial_reports/            # PDF 本地快取
 ├── docs/API_V1.md                    # HTTP API contract 與操作說明

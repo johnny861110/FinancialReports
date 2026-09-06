@@ -87,7 +87,7 @@ uv run fr batch <batch_file.json> [options]
 | 選項 | 預設值 | 說明 |
 |------|--------|------|
 | `--concurrency` | `4` | 最大同時處理數 |
-| `--db` | `data/financial.db` | 資料庫路徑 |
+| `--db` | `$FR_DATABASE_URL` | PostgreSQL 連線 URL |
 
 **批次 JSON 格式：**
 
@@ -156,7 +156,10 @@ uv run fr ask "<question>" --stock <code> --year <year> --quarter <quarter>
 
 ### 3.1 PostgreSQL 資料庫
 
-預設路徑：`data/financial.db`（WAL mode，支援並發讀寫）
+連線由 `FR_DATABASE_URL` 指定，預設
+`postgresql+psycopg://financial:financial@localhost:5432/financial`。
+容器由 compose 的 `db` 服務提供（`pgvector/pgvector:pg16`），
+連接埠見 `.env` 的 `POSTGRES_PORT`。
 
 詳細 Schema 見第 4 節。
 
@@ -456,8 +459,19 @@ CREATE TABLE IF NOT EXISTS document_sections (
 | `auditor` | 會計師查核報告 |
 | `accounting_policy` | 重大會計政策 |
 | `eps_note` | 每股盈餘附註 |
-| `risk` | 風險管理 |
+| `risk` | 風險管理（需為標題形式，非內文提及） |
+| `schedule` | 附表（背書保證、有價證券、關係人進銷貨等） |
+| `note` | 編號附註，`title` 帶實際主題（如 `應收帳款`、`無形資產`） |
 | `other` | 其他 / 未分類 |
+
+`note` 是主要的附註型別。台灣財報附註採嚴格編號（`十、應收帳款`、
+`（四）財務風險管理目的與政策`），parser 以此切分區段並把標題原文寫入 `title`，
+全語料共 885 個不同標題。上方九種型別只在高信心情況下指派：報表與附表有
+`民國` 日期或單位行佐證，其餘四個關鍵字型別（`notes`/`auditor`/
+`accounting_policy`/`eps_note`/`risk`）必須出現在行首且形似標題。
+
+編號附註出現時 `section_type` 會重設為 `note`，不沿用前一段的型別 —— 錯誤的
+標籤比粗略的標籤更糟，會誤導任何信任 `section_type` 的消費端。
 
 ---
 
@@ -490,6 +504,7 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 | eps_note | 0.85 |
 | equity_statement | 0.70 |
 | notes | 0.60 |
+| note | 0.60 |
 | risk | 0.60 |
 | auditor | 0.50 |
 | accounting_policy | 0.50 |
@@ -514,11 +529,21 @@ CREATE TABLE IF NOT EXISTS chunk_embeddings (
     created_at TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
+```
+
+**刻意不建 ANN 索引。** HNSW 以召回率換速度，而這裡沒有可換的東西:每次檢索都
+會篩到單一 `filing_key`（3661_2025Q1 為 123 個 chunk，最大的約 900 個），
+Postgres 以主鍵取出該筆申報的向量後精確排序約 3ms。對全部向量做近似掃描再
+後篩到一筆申報，既較慢也有損失 —— 即使 `enable_seqscan = off`，查詢規劃器仍
+拒絕使用該索引。在此規模下精確搜尋是品質較高的選擇,不只是可接受的選擇。
+
+若日後檢索跨申報（「搜尋所有公司的 X」），或單筆申報大到精確掃描不再便宜，
+再加回：
+
+```sql
 CREATE INDEX idx_chunk_embeddings_hnsw
     ON chunk_embeddings USING hnsw (embedding vector_cosine_ops);
 ```
-
-> 目前為佔位表，向量搜尋功能尚未整合。
 
 ---
 
@@ -1222,7 +1247,6 @@ FinancialReports/
 │   ├── batch_query.json
 │   └── semiconductor_batch.json
 ├── data/
-│   ├── financial.db                  # 舊 SQLite 資料庫（僅供搬遷）
 │   ├── raw/                          # XBRL/iXBRL 下載暫存
 │   └── financial_reports/            # PDF 本地快取
 │       └── {period_code}_{stock_code}_AI1.pdf
@@ -1247,28 +1271,28 @@ FinancialReports/
 | `beautifulsoup4` | ≥4.12.0 | HTML 解析（MOPS, iXBRL） |
 | `lxml` | ≥5.0.0 | XML/HTML 解析（XBRL, iXBRL） |
 | `pydantic` | ≥2.7.0 | 資料驗證（v2） |
+| `fastapi` | ≥0.115.0,<1.0.0 | HTTP API v1 |
+| `uvicorn` | ≥0.30.0,<1.0.0 | ASGI server |
 | `sqlalchemy` | ≥2.0.0 | 資料庫操作 |
-| `pandas` | ≥2.0.0 | 資料處理 |
+| `psycopg[binary]` | ≥3.2.0 | PostgreSQL driver |
 | `typer` | ≥0.12.0 | CLI 框架 |
 | `rich` | ≥13.0.0 | 終端機美化輸出 |
-| `python-dateutil` | ≥2.9.0 | 日期工具 |
 
 ### 選用 Extras
 
 ```bash
 # PDF 萃取
 uv sync --extra pdf
-# pdfplumber>=0.11.0, pypdfium2>=4.0.0
+# pdfplumber>=0.11.0（pypdfium2 由 pdfplumber 自帶）
 
-# OCR（掃描 PDF）
-uv sync --extra ocr
-# paddleocr>=2.7.0, paddlepaddle>=2.6.0, opencv-python>=4.9.0
-
-# 向量搜尋
+# 向量搜尋（chunk 向量，供 `fr embed` 使用；向量本身存在 pgvector）
 uv sync --extra vector
-# chromadb>=0.5.0, sentence-transformers>=3.0.0
+# sentence-transformers>=3.0.0, torch>=2.7.0（CPU-only wheel index）
 
 # LLM 查詢
 uv sync --extra llm
-# openai>=1.30.0, tiktoken>=0.7.0
+# openai>=1.30.0
+
+# 以上全部
+uv sync --extra all
 ```

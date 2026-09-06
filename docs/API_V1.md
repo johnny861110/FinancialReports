@@ -1,7 +1,7 @@
 # FinancialReports API v1
 
 The API is a versioned network contract for typed consumers. Consumers do not
-read this repository's SQLite database or local files. The committed
+read this repository's PostgreSQL database or local files. The committed
 `docs/openapi-v1.json` is the baseline for generated clients and cross-repository
 contract tests.
 
@@ -87,20 +87,43 @@ parameters beyond `evidence_limit`:
 GET /v1/filings/2330/2025Q1/context?question=會計政策有什麼變更&sections=accounting_policy&evidence_limit=5
 ```
 
-Both are optional and degrade rather than fail:
+Both are optional and degrade rather than fail — and the response says so.
+Every context envelope carries a required `retrieval` object describing how
+`evidence_chunks` were actually selected:
 
-- A filing with no embeddings falls back to importance ordering, and
-  `retrieval_score` is `null`.
-- When the optional `vector` extra is not installed the question cannot be
-  embedded, so the request is served by `sections` and importance instead.
+```json
+{"mode": "semantic",   "state": "present",          "detail": null}
+{"mode": "importance", "state": "not_applicable",   "detail": "no question was supplied; ..."}
+{"mode": "importance", "state": "provider_failure", "detail": "the embedding model is unavailable, ..."}
+{"mode": "importance", "state": "missing",          "detail": "this filing has no chunk embeddings, ..."}
+```
+
+`mode` is `semantic` only when the question actually ranked the results.
+`state` reuses the `DataState` vocabulary the snapshot path already applies
+per field, so an existing consumer parses it unchanged. `detail` is populated
+whenever `state` is not `present`.
+
+This exists because the degraded paths were previously indistinguishable from a
+real search: the response still carried well-formed chunks with section titles,
+page numbers and chunk ids, and the only tell was a null `retrieval_score` a
+caller would have had to notice. Consumers should branch on
+`retrieval.state`, not on `retrieval_score`.
 
 Embeddings are generated offline with `fr embed` (requires
 `uv sync --extra vector`). The command is resumable — chunks that already have
-an embedding are skipped.
+an embedding are skipped — so it is safe to interrupt and restart, including
+to move it onto a GPU host mid-run.
 
 Each chunk carries what a citation needs: `chunk_id`, `doc_id`, `checksum`,
 `source_url`, `page_number`, `section_type` and `section_title`. The source
 document's local filesystem path is never exposed.
+
+For topic matching prefer `section_title` over `section_type`. Taiwan filing
+notes are numbered, and the parser segments on that numbering and stores the
+heading verbatim — 885 distinct titles across the corpus (`應收帳款`,
+`無形資產`, `所得稅`, `營業收入`, …) against the dozen coarse `section_type`
+values. A question naming a topic can be matched lexically against the title of
+the note that actually covers it.
 
 ## Release status
 

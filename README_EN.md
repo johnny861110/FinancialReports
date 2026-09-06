@@ -69,11 +69,17 @@ uv sync --extra pdf
 
 | Extra | Install Command | Features Enabled | Packages |
 |-------|-----------------|------------------|----------|
-| `pdf` | `uv sync --extra pdf` | PDF text and table extraction | pdfplumber, pypdfium2 |
-| `ocr` | `uv sync --extra ocr` | Scanned PDF recognition | PaddleOCR, OpenCV |
-| `vector` | `uv sync --extra vector` | Generate chunk embeddings (`fr embed`) | sentence-transformers |
-| `llm` | `uv sync --extra llm` | Natural language Q&A | openai, tiktoken |
-| `all` | `uv sync --extra all` | All features | — |
+| `pdf` | `uv sync --extra pdf` | PDF text and table extraction | pdfplumber |
+| `vector` | `uv sync --extra vector` | Generate chunk embeddings (`fr embed`) | sentence-transformers, torch |
+| `llm` | `uv sync --extra llm` | Natural language Q&A | openai |
+| `all` | `uv sync --extra all` | All of the above | pdf + vector + llm |
+
+> **Run `fr embed` on the host when a GPU is present.** The container pins
+> CPU-only torch on purpose (no GPU passthrough is configured in compose; this
+> keeps ~5GB out of the image and the API never embeds). `fr embed` is an
+> offline batch job with no reason to run there. Measured on an RTX 3060:
+> ~128 chunks/min in the container versus ~2,150 chunks/min on the host, about
+> 17x. The command is resumable, so switching mid-run costs nothing.
 
 **Environment Variables (`.env`):**
 
@@ -88,10 +94,25 @@ FINMIND_TOKEN=              # FinMind paid tier token (not required for free tie
 
 ## 2. Quick Start
 
+### Start PostgreSQL
+
+Everything — CLI, API and the test suite — connects through `FR_DATABASE_URL`:
+
+```bash
+cp .env.example .env          # adjust credentials and port as needed
+docker compose up -d db       # starts pgvector/pgvector:pg16
+export FR_DATABASE_URL="postgresql+psycopg://financial:financial@localhost:${POSTGRES_PORT:-5432}/financial"
+```
+
+The port must match `POSTGRES_PORT` in `.env`; if 5432 is already taken by
+another Postgres on this machine, change it there and both compose and the
+`FR_DATABASE_URL` above follow. Tables are created from
+`src/storage/schema.sql` on first connection.
+
 ### Start HTTP API v1
 
-After the pipeline has populated `data/financial.db`, start the producer API
-used by Financial Agent and other typed consumers:
+Once the database holds data, start the producer API used by Financial Agent
+and other typed consumers:
 
 ```bash
 uv run uvicorn src.api.app:create_app --factory --host 127.0.0.1 --port 8010
@@ -690,7 +711,6 @@ FinancialReports/
 │   ├── batch_query.json              # Query batch config
 │   └── semiconductor_batch.json      # Semiconductor sector batch config
 ├── data/
-│   ├── financial.db                  # legacy SQLite database (one-time migration only)
 │   ├── raw/                          # Downloaded XBRL / iXBRL staging area
 │   └── financial_reports/            # Local PDF cache
 ├── docs/API_V1.md                    # HTTP API contract and operations

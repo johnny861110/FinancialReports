@@ -6,6 +6,46 @@
 
 ## [Unreleased]
 
+### Added
+
+- `ContextEnvelope.retrieval` reports how evidence was selected (`mode`,
+  `state`, `detail`), so a caller can tell a semantic search from a question
+  that was silently ignored. Uses the existing `DataState` vocabulary.
+- `note` section type: numbered filing notes become their own sections titled
+  with the heading text, recovering 885 distinct topic labels across the corpus.
+- `tests/test_pipeline.py` — first tests for the ingest stage.
+
+### Changed
+
+- Ingest fails when no source document could be obtained, instead of marking
+  the filing `ingested` and reporting `completed`.
+- Section detection: the five keyword patterns must now look like headings.
+  `風險管理` matched ordinary prose and had taken 26.9% of all chunks; it is now
+  1.4%.
+- Dropped the HNSW index on `chunk_embeddings`. Every query filters to one
+  filing, so exact search is both faster and lossless here.
+- `fr embed` documented as a host/GPU job; the container stays CPU-only.
+- Removed the `vector-store` (chromadb) extra and unused dependencies
+  (`pandas`, `python-dateutil`, `pyyaml`, `pypdfium2`, `tiktoken`, the whole
+  `ocr` extra). `uv.lock` went from 164 to 85 packages.
+- The api image installs the `pdf` extra; without it the container extracted
+  nothing while reporting success.
+
+### Fixed
+
+- The embedding call no longer blocks the event loop. A stalled model download
+  had taken the entire API down — every endpoint including the healthcheck —
+  for nine hours while the process stayed up.
+- The api container mounts a warm HuggingFace cache and runs with
+  `HF_HUB_OFFLINE=1`, so it never fetches a model at request time.
+
+### Removed
+
+- `scripts/migrate_sqlite_to_postgres.py` and `scripts/verify_parity.py`. The
+  SQLite migration completed in `5cc2552`; these were the last `sqlite3` imports
+  in the tree.
+
+
 ## [3.0.0] - 2026-08-28
 
 ### Added
