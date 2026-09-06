@@ -140,6 +140,13 @@ uv run uvicorn src.api.app:create_app --factory --host 127.0.0.1 --port 8010
 `filing_has_no_source_documents`(**不可重試**,該申報從未取得任何來源文件)。
 請依 `error.code` 與 `retryable` 分支,不要只看狀態碼類別。
 
+> **跑測試前先設好 `FR_DATABASE_URL`。** 150 個測試中有 56 個需要真實的
+> PostgreSQL(儲存層、API contract、pipeline 串接)。未設定時測試會**直接失敗**
+> 而非跳過 —— 因為一個涵蓋率只有 94/150 卻回傳 exit 0 的綠燈,比紅燈更糟。
+> 若確實只想跑不需資料庫的子集,設 `FR_ALLOW_DB_SKIP=1`,並記得看 skip 數字。
+>
+> 注意連接埠:compose 使用 `.env` 的 `POSTGRES_PORT`,不一定是 5432。
+
 ### 單筆執行
 
 ```bash

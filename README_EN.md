@@ -142,6 +142,15 @@ There are also two distinct 409s: `filing_not_ready` (retryable) and
 ever obtained). Branch on `error.code` and honour `retryable`; do not infer
 retryability from the status class.
 
+> **Set `FR_DATABASE_URL` before running the tests.** 56 of the 150 need a real
+> PostgreSQL (storage, API contract, pipeline chain). Without it the run now
+> **fails** rather than skipping — a green result covering 94 of 150 and exiting
+> 0 is worse than a red one. To deliberately run only the database-free subset,
+> set `FR_ALLOW_DB_SKIP=1`, and read the skip count.
+>
+> Mind the port: compose publishes `POSTGRES_PORT` from `.env`, which is not
+> always 5432.
+
 ### Single Filing
 
 ```bash
