@@ -1,9 +1,11 @@
 # Financial Reports Insight Engine
 
-A Taiwan-listed company financial report analysis engine that converts XBRL / iXBRL / PDF source documents into structured financial data, computes financial metrics, automatically detects anomalous events, and generates insight cards ready for LLM Agent consumption.
+A Taiwan-listed company financial report analysis engine that turns FinMind API
+structured figures and full-text PDF filings into financial metrics, anomaly
+detection, and insight cards ready for LLM Agent consumption.
 
 ```
-XBRL / iXBRL / PDF / FinMind API
+FinMind API (structured figures) + PDF (full-text retrieval)
             │
             ▼  Stage 1: Ingest
      Download source documents (TWSE / MOPS / FinMind)
@@ -128,6 +130,18 @@ See [API v1](docs/API_V1.md) for status codes, units, absence semantics, and
 the complete contract. Cross-repository consumers use HTTP and never share the
 producer database connection.
 
+**Two fields every consumer must handle** (on `/context`):
+
+| Field | Why |
+|---|---|
+| `retrieval` | `{mode, state, detail}`. `state` reuses `DataState`: `present` means the question actually ranked the results; `provider_failure` means the embedding model was unavailable; `missing` means the filing has no embeddings. **Branch on `retrieval.state`, not on whether `retrieval_score` is null** — a degraded response still returns well-formed chunks that look like search results. |
+| `corpus_version` | Opaque token for the filing's chunk corpus. `chunk_id` is stable only within one extraction; a re-extract renumbers into an **overlapping** id range, so a stale id does not 404 — it silently resolves to different text. Store this beside any cached citation and compare before citing. |
+
+There are also two distinct 409s: `filing_not_ready` (retryable) and
+`filing_has_no_source_documents` (**not retryable** — no source document was
+ever obtained). Branch on `error.code` and honour `retryable`; do not infer
+retryability from the status class.
+
 ### Single Filing
 
 ```bash
@@ -190,9 +204,9 @@ Downloads source documents from three origins in parallel via async I/O:
 
 | Source | Content Retrieved | Notes |
 |--------|-------------------|-------|
-| MOPS | XBRL instance document | Primary source of structured financial figures |
-| MOPS | iXBRL HTML | Fallback when XBRL is unavailable |
-| TWSE / local cache | PDF financial report | Used for text extraction and notes |
+| FinMind API | Three-statement structured figures | **The only structured source in practice** |
+| TWSE / local cache | PDF financial report | Text extraction, notes, and RAG retrieval |
+| MOPS | XBRL / iXBRL | Code path still present, but no document has ever been obtained (see below) |
 
 - PDF downloads check the local cache (`data/financial_reports/`) first; only fetches remotely if not found
 - Local PDF naming convention: `{period_code}_{stock_code}_AI1.pdf`
@@ -207,19 +221,30 @@ Downloads source documents from three origins in parallel via async I/O:
 uv run fr extract 2330 2024 Q1
 ```
 
-Attempts three financial data sources in priority order:
+> **In practice every structured figure comes from the FinMind API, and that is
+> a deliberate architectural choice.** Every fact in the corpus has
+> `source_type = finmind`, all 67 source documents are PDFs, and no XBRL or
+> iXBRL document has ever been obtained. The priority order below describes
+> what the *code attempts*, not what supplies the data.
+>
+> This looks like a bug from inside the codebase — the schema has an
+> `xbrl_tag` column, the taxonomy lists XBRL tags per field, and the pipeline
+> has an XBRL branch that never fires. **Confirm the source decision before
+> "fixing" any of it**; see `docs/CHANGE-RECORD-2026-09-06.md` §6b.
 
-**Priority 1: XBRL** (confidence 1.0)
+The code attempts three financial data sources in priority order:
+
+**Priority 1: XBRL** (confidence 1.0) — *no document obtained to date*
 - Parses XML instance document
 - Builds a context map (context_ref → period start/end dates)
 - Maps ~100 XBRL tags to canonical field names
 
-**Priority 2: iXBRL** (confidence 0.95)
+**Priority 2: iXBRL** (confidence 0.95) — *no document obtained to date*
 - Parses `ix:nonFraction` elements from HTML
 - Extracts tag names and values using the same logic as XBRL
 
-**Priority 3: FinMind API** (confidence 0.95)
-- Activated when both XBRL and iXBRL are unavailable
+**Priority 3: FinMind API** (confidence 0.95) — **supplies 100% of all facts**
+- Activated when both XBRL and iXBRL are unavailable, which is every run today
 - Queries three datasets concurrently via async:
   - `TaiwanStockFinancialStatements` (income statement)
   - `TaiwanStockBalanceSheet` (balance sheet)
@@ -261,11 +286,21 @@ Runs seven financial logic validation rules and computes an overall quality scor
 **Quality Score (0.0–1.0):**
 
 ```
-quality_score = 0.40 × XBRL coverage ratio
+quality_score = 0.40 × structured-source coverage of canonical fields
               + 0.30 × key field completeness (9 fields)
               + 0.20 × validation pass rate
               + 0.10 × evidence coverage ratio
 ```
+
+> **The ceiling is below 1.0 by design.** Two terms are structurally short:
+> source coverage, because FinMind is the only structured source and supplies
+> 27 of 34 canonical fields on a typical filing (costing 0.40 × 7/34 ≈ 0.082);
+> and evidence coverage, which is 0 for every filing because nothing writes
+> `fact_evidence` (costing a flat 0.10). An otherwise-perfect filing therefore
+> scores about **0.818**, and the observed corpus maximum is exactly 0.8176.
+> **Read it as a relative measure between filings, not as a percentage of an
+> attainable ideal.** The API does not currently return a maximum alongside the
+> score, so consumers should refer to this.
 
 Nine key fields: net_revenue, gross_profit, operating_income, net_income, eps_basic, total_assets, total_liabilities, equity, operating_cash_flow
 
@@ -411,14 +446,15 @@ uv run fr ask "Are there any cash flow anomalies?" --stock 2454 --year 2024 --qu
 ### Source Priority Order (Stage 2 Financial Data Extraction)
 
 ```
-XBRL (primary) → iXBRL (secondary) → FinMind API (fallback)
+Code order:   XBRL (primary) → iXBRL (secondary) → FinMind API (fallback)
+Actual result: FinMind API supplies 100% of all facts
 ```
 
-| Source | Content | Confidence | Notes |
-|--------|---------|------------|-------|
-| XBRL | Structured financial figures (100+ tags) | 1.0 | MOPS blocks automated access; may be unavailable |
-| iXBRL | HTML-embedded financial figures | 0.95 | Same access limitations as XBRL |
-| FinMind API | Three-statement structured data | 0.95 | Free tier requires no token; currently the primary used source |
+| Source | Content | Confidence | Reality |
+|--------|---------|------------|---------|
+| XBRL | Structured financial figures (100+ tags) | 1.0 | **0 rows in the corpus**; no document ever obtained |
+| iXBRL | HTML-embedded financial figures | 0.95 | **0 rows in the corpus**; same |
+| FinMind API | Three-statement structured data | 0.95 | **All 1,751 facts**, deliberately |
 | PDF table parsing | Numbers from financial statement pages | 0.75 | Only activated when all three sources above are unavailable |
 
 ### FinMind API Details

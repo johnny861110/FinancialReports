@@ -1,9 +1,10 @@
 # Financial Reports Insight Engine
 
-台灣上市櫃公司財報分析引擎，將 XBRL / iXBRL / PDF 原始文件轉換為結構化財務資料、計算財務指標、自動偵測異常事件，並產生 LLM Agent 可直接消費的洞察卡片。
+台灣上市櫃公司財報分析引擎，將 FinMind API 的結構化財務數字與 PDF 財報全文轉換為
+財務指標、異常事件偵測與 LLM Agent 可直接消費的洞察卡片。
 
 ```
-XBRL / iXBRL / PDF / FinMind API
+FinMind API（結構化數字） + PDF（全文檢索）
             │
             ▼  Stage 1: Ingest
      下載原始文件（TWSE / MOPS / FinMind）
@@ -128,6 +129,17 @@ uv run uvicorn src.api.app:create_app --factory --host 127.0.0.1 --port 8010
 [API v1 文件](docs/API_V1.md)。跨 repository 只支援 HTTP contract，不共用
 資料庫連線。
 
+**消費端必讀的兩個欄位**(`/context` 回應):
+
+| 欄位 | 用途 |
+|------|------|
+| `retrieval` | `{mode, state, detail}`。`state` 沿用 `DataState`:`present` 表示問題確實參與了語意排序;`provider_failure` 表示 embedding 模型不可用;`missing` 表示該申報尚未 embed。**請判斷 `retrieval.state`,不要看 `retrieval_score` 是否為 null** —— 降級時仍會回傳格式完整、看起來像檢索結果的 chunks。 |
+| `corpus_version` | 該申報 chunk 語料的不透明版本 token。`chunk_id` 只在單次萃取內穩定,重新萃取會重編號且**新舊區間重疊**,所以過期的 id 不會 404,而是靜默指向別的文字。快取引用時請一併存下此值,引用前比對是否相同。 |
+
+另外有兩種 409:`filing_not_ready`(可重試)與
+`filing_has_no_source_documents`(**不可重試**,該申報從未取得任何來源文件)。
+請依 `error.code` 與 `retryable` 分支,不要只看狀態碼類別。
+
 ### 單筆執行
 
 ```bash
@@ -190,9 +202,9 @@ uv run fr ingest 2330 2024 Q1
 
 | 來源 | 取得內容 | 說明 |
 |------|----------|------|
-| MOPS | XBRL instance document | 結構化財務數字主要來源 |
-| MOPS | iXBRL HTML | XBRL 不可用時的備援 |
-| TWSE / 本地快取 | PDF 財務報告 | 文字萃取與附註 |
+| FinMind API | 三表結構化財務數字 | **實際唯一的結構化來源** |
+| TWSE / 本地快取 | PDF 財務報告 | 文字萃取、附註與 RAG 檢索 |
+| MOPS | XBRL / iXBRL | 程式路徑仍在，但實務上未取得任何文件（見下方說明） |
 
 - PDF 優先使用本地快取（`data/financial_reports/`），不存在才連線下載
 - 本地 PDF 命名規則：`{期間碼}_{股票代碼}_AI1.pdf`
@@ -207,19 +219,28 @@ uv run fr ingest 2330 2024 Q1
 uv run fr extract 2330 2024 Q1
 ```
 
-按優先級依序嘗試三種財務數字來源：
+> **實務上結構化數字全部來自 FinMind API,這是刻意的架構選擇。**
+> 語料庫中每一筆 fact 的 `source_type` 都是 `finmind`,67 份來源文件全是 PDF,
+> 從未取得過任何 XBRL 或 iXBRL 文件。下方的優先級順序描述的是**程式碼仍會嘗試
+> 的順序**,不是實際供應數據的來源。
+>
+> 這一點從程式碼內部看起來很像 bug(schema 有 `xbrl_tag` 欄位、taxonomy 為每個
+> 欄位列出 XBRL tags、pipeline 有一個從不觸發的 XBRL 分支)。**在「修正」之前請
+> 先確認:來源決策已經定案。** 詳見 `docs/CHANGE-RECORD-2026-09-06.md` §6b。
 
-**優先級 1：XBRL**（信心度 1.0）
+程式碼依序嘗試三種財務數字來源：
+
+**優先級 1：XBRL**（信心度 1.0）— *目前未取得任何文件*
 - 解析 XML instance document
 - 建立 context map（context_ref → 期間起訖日）
 - 對應 ~100 個 XBRL tag → canonical 欄位名稱
 
-**優先級 2：iXBRL**（信心度 0.95）
+**優先級 2：iXBRL**（信心度 0.95）— *目前未取得任何文件*
 - 從 HTML 中解析 `ix:nonFraction` 元素
 - 取出 tag 名稱與數值，邏輯同 XBRL
 
-**優先級 3：FinMind API**（信心度 0.95）
-- 當 XBRL / iXBRL 均無法取得時啟用
+**優先級 3：FinMind API**（信心度 0.95）— **實際供應 100% 的 facts**
+- 當 XBRL / iXBRL 均無法取得時啟用,亦即目前的每一次執行
 - 非同步並行查詢三個 dataset：
   - `TaiwanStockFinancialStatements`（損益表）
   - `TaiwanStockBalanceSheet`（資產負債表）
@@ -261,11 +282,18 @@ uv run fr validate 2330 2024 Q1
 **品質分數（0.0–1.0）：**
 
 ```
-quality_score = 0.40 × 資料來源覆蓋率（XBRL / iXBRL / FinMind 均計入）
+quality_score = 0.40 × 資料來源覆蓋率（結構化來源涵蓋的 canonical 欄位比例）
               + 0.30 × 關鍵欄位完整度
               + 0.20 × 驗證通過率
               + 0.10 × 佐證覆蓋率
 ```
+
+> **分數上限低於 1.0,且是設計使然。** 兩個分項結構性短少:資料來源覆蓋率因
+> FinMind 為唯一結構化來源,典型申報只涵蓋 34 個 canonical 欄位中的 27 個
+> （損失 0.40 × 7/34 ≈ 0.082）；佐證覆蓋率因沒有任何程式寫入 `fact_evidence`
+> 而恆為 0（損失 0.10）。因此一份其他方面完美的申報約為 **0.818**,實際語料庫
+> 觀測到的最高分正是 0.8176。**請當作申報之間的相對指標,而非「距離可達成的
+> 理想值還差多少」。** API 目前不隨分數附帶最大值,消費端請自行參照此處。
 
 **一般股關鍵欄位（9 項）：** net_revenue、gross_profit、operating_income、net_income、eps_basic、total_assets、total_liabilities、equity、operating_cash_flow
 
@@ -411,14 +439,15 @@ uv run fr ask "現金流有無異常？" --stock 2454 --year 2024 --quarter Q2
 ### 來源優先順序（Stage 2 財務數字萃取）
 
 ```
-XBRL（優先）→ iXBRL（次要）→ FinMind API（回退）
+程式碼順序：XBRL（優先）→ iXBRL（次要）→ FinMind API（回退）
+實際結果：  FinMind API 供應 100% 的 facts
 ```
 
-| 來源 | 取得內容 | 信心度 | 備註 |
-|------|----------|--------|------|
-| XBRL | 結構化財務數字（100+ tags） | 1.0 | MOPS 自動化存取受限，可能無法下載 |
-| iXBRL | HTML 嵌入式財務數字 | 0.95 | 同上 |
-| FinMind API | 三表結構化數字 | 0.95 | 免費層無需 token，目前主要使用來源 |
+| 來源 | 取得內容 | 信心度 | 實際狀況 |
+|------|----------|--------|----------|
+| XBRL | 結構化財務數字（100+ tags） | 1.0 | **語料庫中 0 筆**；未曾取得任何文件 |
+| iXBRL | HTML 嵌入式財務數字 | 0.95 | **語料庫中 0 筆**；同上 |
+| FinMind API | 三表結構化數字 | 0.95 | **全部 1,751 筆 facts 皆來自此處**，刻意如此 |
 | PDF 表格解析 | 財務報表頁面數字 | 0.75 | 僅在以上三者均無法使用時啟用 |
 
 ### FinMind API 說明

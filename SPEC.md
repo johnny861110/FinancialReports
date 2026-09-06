@@ -1031,6 +1031,23 @@ uv run uvicorn src.api.app:create_app --factory --host 127.0.0.1 --port 8010
 | 工作 | `POST /v1/filings/{stock_code}/{period}/refresh`, `GET /v1/jobs/{job_id}` |
 | 批次 | `POST /v1/batch/filings/query` |
 
+**`/context` 回應中兩個 consumer 必須處理的欄位：**
+
+| 欄位 | 型別 | 語意 |
+|------|------|------|
+| `retrieval` | `{mode, state, detail}` | `mode` 為 `semantic` \| `importance`；`state` 沿用 `DataState`。`present` = 問題確實參與語意排序；`not_applicable` = 未帶問題；`provider_failure` = embedding 模型不可用；`missing` = 該申報尚無向量。降級時仍會回傳格式完整的 chunks，因此**請判斷 `state`,不要以 `retrieval_score` 是否為 null 推論**。 |
+| `corpus_version` | `str \| null` | 該申報 chunk 語料的不透明 token（現為最新 chunk 的 ISO-8601 時間戳）。`chunk_id` 僅在單次萃取內穩定,重新萃取會重編號且新舊 id 區間重疊,過期 id 不會 404 而會**靜默指向不同文字**。快取引用時一併保存並在引用前比對。 |
+
+**狀態碼中兩種不同的 409：**
+
+| 狀態 | `error.code` | `retryable` | 意義 |
+|------|--------------|-------------|------|
+| 409 | `filing_not_ready` | `true` | 申報存在但尚未達 `validated`，跑完管道即可解決 |
+| 409 | `filing_has_no_source_documents` | **`false`** | 從未取得任何來源文件，**重試永遠不會成功**，應視為該申報的永久資料缺口 |
+| 503 | `provider_failure` | `true` | 生產端或其上游真的失敗 |
+
+請依 `error.code` 與 `retryable` 分支，不要只依狀態碼類別推論可重試性。
+
 回應 schema 版本為 `1.0.0`，包含 filing identity、readiness、pipeline
 status、freshness、quality、snapshot、canonical facts、field availability、
 validation、metrics、comparisons、events、evidence、insight cards、source

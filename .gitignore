@@ -97,3 +97,10 @@ raw/
 # Graphify output (generated artifacts)
 graphify-out/
 src/graphify-out/
+
+# Agent tooling: generated, machine-local, and regenerated on demand.
+# AGENTS.md and CLAUDE.md are GitNexus output (see the gitnexus:start marker)
+# and go stale against the index rather than describing the project.
+.claude/
+AGENTS.md
+CLAUDE.md
