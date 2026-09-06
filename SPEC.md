@@ -745,6 +745,13 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 
 ## 5. 管道四階段詳細說明
 
+> **重新萃取既有資料時,四階段必須跑完 `extract → validate → insights`。**
+> 以 `--force` 重跑 extract 會將申報狀態退回 `extracted`,低於 `build_envelope`
+> 要求的 `validated` / `insight_ready`,因此在後兩階段補完前所有申報都會回
+> 409。另外 extract 會刪除該文件既有的 chunks 與向量,所以之後需重跑
+> `fr embed`(有 GPU 時在 host 執行,見 README)。
+
+
 ### Stage 1: INGEST（下載）
 
 **狀態轉換：** `pending` → `ingested`

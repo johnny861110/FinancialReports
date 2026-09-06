@@ -384,6 +384,20 @@ uv run fr run 2330 2024 Q1 --db /data/prod.db --output-dir /data/raw
 
 # Batch process semiconductor sector
 uv run fr batch examples/semiconductor_batch.json --concurrency 6
+```
+
+> **A corpus-wide re-extract must run `extract → validate → insights`, not
+> `extract` alone.** Re-running extract with `--force` resets each filing to
+> `extracted`, which is below the threshold the API requires, so **every filing
+> returns 409 on `/snapshot` and `/context`** until validate and insights catch
+> up. Completing them takes about 15 seconds for the whole corpus; skipping them
+> is a consumer-facing outage.
+>
+> Parser changes do not reach existing data on their own: `document_sections`
+> and `document_chunks` are only rebuilt by a re-extract, and a re-extract also
+> deletes the affected embeddings, so `fr embed` has to run afterwards.
+
+```bash
 
 # Natural language queries
 uv run fr ask "Why did EPS grow significantly this quarter?" --stock 2330 --year 2024 --quarter Q1
@@ -514,9 +528,9 @@ revenue_growth      | Revenue Growth         | YoY growth 16.5%, beat expectatio
 | `source_documents` | Downloaded file records (path, size, checksum) |
 | `fact_evidence` | Source document evidence linking to financial facts |
 | `document_pages` | Full-page text content from PDFs |
-| `document_sections` | PDF section splits (income statement, balance sheet, etc.) |
+| `document_sections` | PDF section splits: statement types plus numbered notes, with the heading text in `title` |
 | `document_chunks` | RAG text segments (~600 chars/chunk) |
-| `chunk_embeddings` | Vector embeddings (optional, requires --extra vector) |
+| `chunk_embeddings` | `VECTOR(768)` embeddings from `fr embed`; deliberately no ANN index |
 | `validation_results` | Results of the seven validation rule checks |
 | `text_summaries` | Text summaries |
 | `insight_evidence` | Evidence links for insight cards |

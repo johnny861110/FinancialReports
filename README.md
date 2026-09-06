@@ -386,6 +386,18 @@ uv run fr run 2330 2024 Q1 --db /data/prod.db --output-dir /data/raw
 
 # 批次處理半導體族群
 uv run fr batch examples/semiconductor_batch.json --concurrency 6
+```
+
+> **整批重新萃取務必跑完 `extract → validate → insights`,不能只跑 extract。**
+> `--force` 重跑 extract 會把申報狀態退回 `extracted`,低於 API 要求的門檻,
+> 因此在 validate 與 insights 補完之前,**每一筆申報的 `/snapshot` 與 `/context`
+> 都會回 409**。整個語料庫重跑一次約 15 秒即可補完,但漏掉就是一次對外中斷。
+>
+> 另外,改動 parser 後既有資料不會自動更新——`document_sections` 與
+> `document_chunks` 只有在重新萃取時才會依新規則重建,重建後還需要重跑
+> `fr embed`(chunk 重建會連帶刪除既有向量)。
+
+```bash
 
 # 查詢問答
 uv run fr ask "本季 EPS 為何大幅成長？" --stock 2330 --year 2024 --quarter Q1

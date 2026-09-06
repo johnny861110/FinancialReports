@@ -32,9 +32,24 @@ uv run python -m src.api.export_openapi
 - `GET /v1/jobs/{job_id}`
 
 `period` always uses `YYYYQn`. A successful snapshot has `status=ready|stale`
-and includes enough data to construct a FinancialSnapshot. A filing that has
-not reached `validated` returns 409; provider or pipeline failure returns 503;
-missing filings return 404. Refresh returns 202 with a job id.
+and includes enough data to construct a FinancialSnapshot. Missing filings
+return 404. Refresh returns 202 with a job id.
+
+Two distinct 409s and one 503, and the difference matters to a retry policy:
+
+| Status | `error.code` | `retryable` | Meaning |
+|---|---|---|---|
+| 409 | `filing_not_ready` | `true` | The filing exists but has not reached `validated`. Running the pipeline will resolve it. |
+| 409 | `filing_has_no_source_documents` | **`false`** | No source document was ever obtained for this filing. It will **never** resolve on retry; treat it as a permanent data gap for that filing, not as an error. |
+| 503 | `provider_failure` | `true` | The producer or its upstream genuinely failed. |
+
+`filing_has_no_source_documents` applies to **both** `/snapshot` and
+`/context`. It exists because this case used to answer 503, so a consumer
+retrying on `>= 500` burned its budget on a permanent condition and then
+reported the whole producer as unavailable over a single empty filing — which
+also made a real outage indistinguishable from an empty one. Branch on
+`error.code` and honour `retryable`; do not infer retryability from the status
+class alone.
 
 Compatibility fields are preserved alongside richer sections:
 
@@ -117,6 +132,27 @@ to move it onto a GPU host mid-run.
 Each chunk carries what a citation needs: `chunk_id`, `doc_id`, `checksum`,
 `source_url`, `page_number`, `section_type` and `section_title`. The source
 document's local filesystem path is never exposed.
+
+### Citation stability
+
+`chunk_id` is only stable within one extraction. Re-extracting a filing deletes
+and re-inserts its chunks, and because identity values keep climbing while the
+old range stays occupied, a cached id does not reliably stop resolving — it can
+silently return different text, from a different filing. Nothing else in the
+envelope moves when that happens.
+
+Every context envelope therefore carries `corpus_version`: an opaque token for
+that filing's current chunk corpus, currently the ISO-8601 timestamp of its
+newest chunk, null when it has none.
+
+```json
+{"corpus_version": "2026-09-06T07:51:30.369512+00:00"}
+```
+
+Store it alongside any cached `chunk_id` and compare by equality before citing.
+If it differs, the ids are stale and must be re-fetched. It is per-filing on
+purpose, so a consumer caching citations for one filing is not invalidated by an
+unrelated filing being re-extracted.
 
 For topic matching prefer `section_title` over `section_type`. Taiwan filing
 notes are numbered, and the parser segments on that numbering and stores the
