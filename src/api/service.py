@@ -165,6 +165,25 @@ def build_envelope(
 ) -> FilingEnvelope | ContextEnvelope:
     filing = bundle["filing"]
     pipeline_status = FilingStatus(filing["status"])
+
+    # Checked before the provider-failure branch below, which would otherwise
+    # claim this. A filing with no source document fails its pipeline by
+    # design, but 503 says the producer is unavailable and is marked
+    # retryable -- so a consumer backing off and retrying reports the whole
+    # service as down over one permanently empty filing, burns its retry
+    # budget on something that can never succeed, and loses the ability to
+    # tell this apart from a real outage. It is a conflict with the filing's
+    # own state, and it will not resolve on its own.
+    if not bundle["source_documents"]:
+        raise APIProblem(
+            409,
+            "filing_has_no_source_documents",
+            "filing exists but no source document was ever obtained for it",
+            DataState.MISSING,
+            retryable=False,
+            details={"pipeline_status": pipeline_status.value},
+        )
+
     latest_failed = any(item["status"] == "failed" for item in bundle["pipeline_state"][-4:])
     if pipeline_status is FilingStatus.FAILED or latest_failed:
         raise APIProblem(

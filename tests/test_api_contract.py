@@ -285,3 +285,40 @@ def test_refresh_and_job_contract(api_client) -> None:
     job = api_client.get(f"/v1/jobs/{job_id}")
     assert job.status_code == 200
     assert job.json()["status"] == "succeeded"
+
+
+def test_a_filing_with_no_source_documents_is_a_conflict_not_an_outage(api_client):
+    """503 told the consumer the whole producer was down.
+
+    A filing that never obtained a source document fails its pipeline by
+    design, but the provider-failure branch reported that as 503 retryable --
+    so a client backing off surfaced "FinancialReports is unavailable" for one
+    permanently empty filing, and a real outage became indistinguishable from
+    it. It is a conflict with the filing's own state and it will not resolve.
+    """
+    store = api_client.app.state.store
+    filing_id = store.get_filing_id("2330_2025Q1")
+    with store.conn() as conn:
+        for table in ("document_chunks", "document_sections", "document_pages"):
+            conn.execute(
+                text(
+                    f"DELETE FROM {table} WHERE doc_id IN"
+                    " (SELECT id FROM source_documents WHERE filing_id=:fid)"
+                ),
+                {"fid": filing_id},
+            )
+        conn.execute(
+            text(
+                "DELETE FROM fact_evidence WHERE doc_id IN"
+                " (SELECT id FROM source_documents WHERE filing_id=:fid)"
+            ),
+            {"fid": filing_id},
+        )
+        conn.execute(text("DELETE FROM source_documents WHERE filing_id=:fid"), {"fid": filing_id})
+
+    response = api_client.get("/v1/filings/2330/2025Q1/snapshot")
+
+    assert response.status_code == 409
+    error = response.json()["error"]
+    assert error["code"] == "filing_has_no_source_documents"
+    assert error["retryable"] is False
