@@ -141,3 +141,23 @@ async def test_insights_demotes_a_filing_already_marked_ready_without_documents(
         run_build_insights(identity, store)
 
     assert store.get_filing_status(identity.filing_key) == "extracted"
+
+
+async def test_insights_also_demotes_from_validated(store, monkeypatch, tmp_path):
+    """`validated` is consumer-ready too, and validate() sets it directly.
+
+    build_envelope serves both `validated` and `insight_ready`, so demoting only
+    from the latter would leave a document-less filing presenting as ready via a
+    status that the validate stage assigns on its own.
+    """
+    from src.pipeline.build_insights import run_build_insights
+
+    identity = FilingIdentity(stock_code=STOCK, year=2025, quarter="Q1")
+    company_id = store.upsert_company(STOCK, name_zh="台積電")
+    filing_id = store.upsert_filing(identity, company_id)
+    store.update_filing_status(filing_id, "validated")
+
+    with pytest.raises(ValueError, match="demoted from validated"):
+        run_build_insights(identity, store)
+
+    assert store.get_filing_status(identity.filing_key) == "extracted"

@@ -51,13 +51,19 @@ def run_build_insights(identity: FilingIdentity, store: FilingStore) -> dict:
         # demote filings the old code already advanced, so the invariant is
         # enforced here as well: checked before the already-ready short-circuit
         # so an existing violation is corrected rather than skipped over.
+        # Demoted out of *any* consumer-ready status, not just insight_ready:
+        # build_envelope serves both `validated` and `insight_ready`, and the
+        # validate stage sets `validated` on its own, so a document-less filing
+        # can reach a ready status without insights ever running.
         if not store.count_source_docs(filing_id):
-            if current_status_is_ready := store.get_filing_status(fk) == "insight_ready":
+            previous = store.get_filing_status(fk)
+            was_ready = previous in ("validated", "insight_ready")
+            if was_ready:
                 store.update_filing_status(filing_id, "extracted")
             store.log_pipeline_run(fk, "insights", "failed", error="filing has no source document")
             raise ValueError(
                 f"{fk} has no source document; refusing to mark it insight_ready"
-                + (" (demoted from insight_ready)" if current_status_is_ready else "")
+                + (f" (demoted from {previous})" if was_ready else "")
             )
 
         current_status = store.get_filing_status(fk)
