@@ -295,3 +295,29 @@ def test_retrieval_reports_missing_when_the_filing_has_no_embeddings(retrieval_c
     assert retrieval["mode"] == "importance"
     assert retrieval["state"] == "missing"
     assert "no chunk embeddings" in retrieval["detail"]
+
+
+def test_corpus_version_is_reported_and_moves_when_chunks_are_rebuilt(retrieval_client):
+    """chunk_id is only stable within one extraction.
+
+    Re-extracting deletes and re-inserts chunks; identity values keep climbing
+    while the old range stays occupied, so a cached id can silently resolve to
+    different text instead of failing. corpus_version is what lets a consumer
+    notice.
+    """
+    before = _context(retrieval_client, evidence_limit=1).json()["corpus_version"]
+    assert before is not None
+
+    store = retrieval_client.store
+    ids = retrieval_client.chunk_ids
+    with store.conn() as conn:
+        original = conn.execute(
+            text(
+                "SELECT doc_id, section_id, page_number, content FROM document_chunks WHERE id=:i"
+            ),
+            {"i": ids["policy"]},
+        ).fetchone()
+    store.save_chunk(original[0], original[1], original[2], 9, original[3] + "新增")
+
+    after = _context(retrieval_client, evidence_limit=1).json()["corpus_version"]
+    assert after != before, "corpus_version must move when the chunk corpus changes"

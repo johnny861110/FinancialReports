@@ -1028,6 +1028,17 @@
           },
           "retrieval": {
             "$ref": "#/components/schemas/RetrievalInfo"
+          },
+          "corpus_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corpus Version"
           }
         },
         "additionalProperties": false,

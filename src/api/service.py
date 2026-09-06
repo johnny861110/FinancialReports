@@ -161,6 +161,7 @@ def build_envelope(
     fields: list[str] | None = None,
     chunks: list[dict[str, Any]] | None = None,
     retrieval: RetrievalInfo | None = None,
+    corpus_version: str | None = None,
 ) -> FilingEnvelope | ContextEnvelope:
     filing = bundle["filing"]
     pipeline_status = FilingStatus(filing["status"])
@@ -332,6 +333,7 @@ def build_envelope(
             **base,
             evidence_chunks=[_evidence_chunk(c) for c in chunks],
             retrieval=retrieval,
+            corpus_version=corpus_version,
         )
     return FilingEnvelope(**base)
 

@@ -329,6 +329,20 @@ class APIRepository:
                 ).fetchone()
             )
 
+    def corpus_version(self, filing_key: str) -> str | None:
+        """Token for the filing's current chunk corpus; see ContextEnvelope."""
+        with self.store.conn() as conn:
+            newest = conn.execute(
+                text(
+                    "SELECT max(dc.created_at) FROM document_chunks dc"
+                    " JOIN source_documents sd ON sd.id=dc.doc_id"
+                    " JOIN filings f ON f.id=sd.filing_id"
+                    " WHERE f.filing_key=:filing_key"
+                ),
+                {"filing_key": filing_key},
+            ).scalar_one_or_none()
+        return newest.isoformat() if newest else None
+
     def known_section_types(self) -> list[str]:
         with self.store.conn() as conn:
             rows = conn.execute(

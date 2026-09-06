@@ -307,6 +307,21 @@ class ContextEnvelope(FilingEnvelope):
     evidence_chunks: list[EvidenceChunk] = Field(default_factory=list)
     retrieval: RetrievalInfo
 
+    corpus_version: str | None = None
+    """Opaque token identifying this filing's current chunk corpus.
+
+    `chunk_id` is only stable within one extraction. Re-extracting a filing
+    deletes and re-inserts its chunks, and because identity values keep
+    climbing while the old range stays occupied, a cached id does not reliably
+    stop resolving -- it can silently return different text from a different
+    filing. Nothing else in the envelope changes when that happens.
+
+    Compare this by equality against the value stored alongside any cached
+    chunk_id: if it differs, the ids are stale and must be re-fetched rather
+    than cited. Currently the ISO-8601 timestamp of the filing's newest chunk;
+    treat it as opaque. Null when the filing has no chunks.
+    """
+
 
 class StockSummary(ContractModel):
     stock_code: str

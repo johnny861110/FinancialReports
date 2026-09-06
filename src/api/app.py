@@ -263,6 +263,7 @@ def create_app(
             selected,
             chunks,
             retrieval=retrieval_info(question, question_embedding, semantic),
+            corpus_version=repo.corpus_version(filing_key),
         )
         assert isinstance(result, ContextEnvelope)
         return result
