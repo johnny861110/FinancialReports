@@ -202,6 +202,16 @@ class FilingStore:
             )
             return int(result.scalar_one())
 
+    def count_source_docs(self, filing_id: int) -> int:
+        """How many source documents a filing has on record."""
+        with self.conn() as c:
+            return int(
+                c.execute(
+                    text("SELECT count(*) FROM source_documents WHERE filing_id=:fid"),
+                    {"fid": filing_id},
+                ).scalar_one()
+            )
+
     # ------------------------------------------------------------------
     # Facts
     # ------------------------------------------------------------------

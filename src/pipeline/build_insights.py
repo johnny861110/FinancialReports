@@ -38,15 +38,33 @@ def run_build_insights(identity: FilingIdentity, store: FilingStore) -> dict:
     store.log_pipeline_run(fk, "insights", "started")
 
     try:
+        filing_id = store.get_filing_id(fk)
+        if filing_id is None:
+            raise ValueError(f"Filing not found: {fk}")
+
+        # A filing with no source document has nothing behind its numbers, and
+        # must not present as ready. Before the ingest guard existed, all three
+        # downloads returning None still advanced the filing, and insights then
+        # built cards from the FinMind fact fallback alone -- 2330_2026Q2
+        # reported a 0.8176 quality score with no document and no retrievable
+        # text. The ingest guard stops that happening again, but it cannot
+        # demote filings the old code already advanced, so the invariant is
+        # enforced here as well: checked before the already-ready short-circuit
+        # so an existing violation is corrected rather than skipped over.
+        if not store.count_source_docs(filing_id):
+            if current_status_is_ready := store.get_filing_status(fk) == "insight_ready":
+                store.update_filing_status(filing_id, "extracted")
+            store.log_pipeline_run(fk, "insights", "failed", error="filing has no source document")
+            raise ValueError(
+                f"{fk} has no source document; refusing to mark it insight_ready"
+                + (" (demoted from insight_ready)" if current_status_is_ready else "")
+            )
+
         current_status = store.get_filing_status(fk)
         if current_status == "insight_ready":
             logger.info("Skipping insights for %s — already insight_ready", fk)
             store.log_pipeline_run(fk, "insights", "skipped")
             return {"metrics_count": 0, "insights_count": 0, "events_count": 0, "status": "skipped"}
-
-        filing_id = store.get_filing_id(fk)
-        if filing_id is None:
-            raise ValueError(f"Filing not found: {fk}")
 
         # 1. Load facts
         facts = store.get_facts_dict(fk)

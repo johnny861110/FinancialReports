@@ -104,3 +104,40 @@ async def test_ingest_records_no_source_document_rows_when_nothing_downloaded(
             {"fid": filing_id},
         ).scalar_one()
     assert count == 0
+
+
+async def test_insights_refuses_a_filing_with_no_source_document(store, monkeypatch, tmp_path):
+    """Nothing behind the numbers means the filing must not present as ready."""
+    from src.pipeline.build_insights import run_build_insights
+
+    identity = FilingIdentity(stock_code=STOCK, year=2025, quarter="Q1")
+    company_id = store.upsert_company(STOCK, name_zh="台積電")
+    filing_id = store.upsert_filing(identity, company_id)
+    store.update_filing_status(filing_id, "extracted")
+
+    with pytest.raises(ValueError, match="no source document"):
+        run_build_insights(identity, store)
+
+    assert store.get_filing_status(identity.filing_key) != "insight_ready"
+
+
+async def test_insights_demotes_a_filing_already_marked_ready_without_documents(
+    store, monkeypatch, tmp_path
+):
+    """The ingest guard cannot fix filings the old code already advanced.
+
+    7418_2026Q1 reached insight_ready with zero documents before the guard
+    existed, so the invariant has to correct an existing violation rather than
+    only prevent new ones.
+    """
+    from src.pipeline.build_insights import run_build_insights
+
+    identity = FilingIdentity(stock_code=STOCK, year=2025, quarter="Q1")
+    company_id = store.upsert_company(STOCK, name_zh="台積電")
+    filing_id = store.upsert_filing(identity, company_id)
+    store.update_filing_status(filing_id, "insight_ready")
+
+    with pytest.raises(ValueError, match="demoted from insight_ready"):
+        run_build_insights(identity, store)
+
+    assert store.get_filing_status(identity.filing_key) == "extracted"
