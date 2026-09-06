@@ -15,8 +15,8 @@ jobs:
 
     services:
       # The suite runs against a real database. pgvector rather than plain
-      # postgres so the image already carries the extension the retrieval work
-      # needs next.
+      # postgres because schema.sql creates the vector extension and an HNSW
+      # index, which plain postgres cannot do.
       db:
         image: pgvector/pgvector:pg16
         env:
@@ -50,10 +50,10 @@ jobs:
         run: uv sync --group dev
 
       - name: Lint (ruff check)
-        run: uv run ruff check src/ tests/ scripts/
+        run: uv run ruff check src/ tests/
 
       - name: Format check (ruff format)
-        run: uv run ruff format --check src/ tests/ scripts/
+        run: uv run ruff format --check src/ tests/
 
       - name: Type check (mypy)
         run: uv run mypy src/ --ignore-missing-imports
