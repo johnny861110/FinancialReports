@@ -68,3 +68,40 @@ async def test_finmind_base_exception_result_is_provider_failure(monkeypatch) ->
 def test_pdf_url_parser_rejects_non_string_href() -> None:
     html = '<a href="one.pdf" class="report">ok</a><meta http-equiv="refresh">'
     assert MOPSPDFClient._parse_pdf_url(html, "one.pdf") == ("https://doc.twse.com.tw/one.pdf")
+
+
+class TestFinMindUnitConversion:
+    """FinMind reports full TWD; the canonical unit is thousands.
+
+    The conversion used to be guarded by `abs(value) >= 1000`, which left any
+    amount under NT$1,000 undivided and then labelled it thousands -- a silent
+    1000x on the smallest values only. The convention is uniform, so the guard
+    protected nothing.
+    """
+
+    @staticmethod
+    def _facts(value, fm_type="Revenue"):
+        from src.sources.finmind_client import FinMindClient
+
+        return FinMindClient()._records_to_facts(
+            [{"date": "2025-03-31", "type": fm_type, "value": value}], "2025-03-31"
+        )
+
+    def test_a_large_amount_converts_to_thousands(self):
+        # TSMC 2024Q1 revenue arrives as full TWD and is NT$592.64bn.
+        assert self._facts(592_644_201_000)[0]["value"] == 592_644_201
+
+    def test_an_amount_below_one_thousand_is_still_converted(self):
+        """The case the old guard mis-scaled by 1000x."""
+        assert self._facts(500)[0]["value"] == 0.5
+
+    def test_eps_is_excluded_by_unit_not_by_magnitude(self):
+        fact = self._facts(7.82, fm_type="EPS")[0]
+        assert fact["unit"] == "TWD_per_share"
+        assert fact["value"] == 7.82
+
+    def test_the_short_equity_spelling_is_not_an_income_field(self):
+        """It used to map to net_income_attributable_to_parent."""
+        fact = self._facts(41_588_114_000, fm_type="EquityAttributableToOwnersOfParent")[0]
+        assert fact["field"] == "equity_attributable_to_parent"
+        assert fact["period_type"] == "instant"

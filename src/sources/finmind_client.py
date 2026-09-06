@@ -228,8 +228,15 @@ class FinMindClient:
 
             period_type = "instant" if canonical in _INSTANT_FIELDS else "duration"
             unit = "TWD_per_share" if canonical.startswith("eps") else "TWD_thousands"
-            # FinMind values are in full TWD (not thousands) — convert
-            if unit == "TWD_thousands" and abs(value) >= 1000:
+            # FinMind reports full TWD, so this converts to the canonical
+            # thousands. It used to be guarded by `abs(value) >= 1000`, which
+            # created a silent 1000x cliff: an amount under NT$1,000 was left
+            # undivided and then labelled thousands. The convention is uniform
+            # -- 2330_2024Q1 net_revenue arrives as 592,644,201,000 and
+            # 592,644,201 thousands is TSMC's published figure -- so there is
+            # nothing for the guard to protect and it only mis-scales the
+            # smallest values. EPS is excluded by unit, not by magnitude.
+            if unit == "TWD_thousands":
                 value = value / 1000.0
 
             facts.append(
