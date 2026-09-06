@@ -80,9 +80,66 @@ def _detect_schedule(text: str) -> tuple[str, str] | None:
     return "schedule", match.group(0) if match else "附表"
 
 
+# Taiwan filing notes are rigidly numbered, and that numbering is the only
+# regular section boundary the document actually carries: 十、應收帳款,
+# （四）財務風險管理目的與政策, 2.風險管理政策. Detecting it recovers ~950 distinct
+# note headings across the corpus, against the nine hard-coded types below.
+_NOTE_NUMBER = (
+    r"(?:[（(][一二三四五六七八九十百]+[)）]"  # （四）
+    r"|[一二三四五六七八九十百]{1,3}、"  # 十、
+    r"|\d{1,2}[.、]"  # 12.
+    r"|[A-Za-z][.、])"  # B.
+)
+_NOTE_HEADING = re.compile(rf"(?m)^[ \t]*{_NOTE_NUMBER}[ \t]*(\S[^\n]{{0,28}})$")
+
+# These four patterns are bare substrings with no structural anchor, unlike the
+# statement titles which require a 民國 date nearby. `風險管理` in particular
+# matches ordinary prose -- "係依書面之風險管理政策", "風險管理部門依相關業務管理
+# 部門" -- and financial-holding filings discuss risk management on nearly every
+# notes page, so it fired 418 times across 67 filings and took 26.9% of all
+# chunks. Requiring them to look like a heading is what stops that.
+_UNANCHORED_SECTIONS = frozenset({"notes", "auditor", "accounting_policy", "eps_note", "risk"})
+
+# A heading is terse, unpunctuated Chinese: not a cross-reference, not a
+# table-of-contents row with a page range, not a table cell full of figures.
+_HEADING_CROSSREF = re.compile(r"請?參閱|詳見|詳如|見附註")
+_HEADING_TOC = re.compile(r"\d+\s*[~～-]\s*\d+\s*$|\.{4,}")
+_HEADING_CJK = re.compile(r"[一-鿿]")
+_HEADING_FIGURES = re.compile(r"\d[\d,]{2,}")
+_MAX_HEADING_CHARS = 30
+
+
+def _looks_like_heading(body: str) -> bool:
+    """Whether a line's text (after any numbering) reads as a section heading."""
+    body = body.strip()
+    if not (2 <= len(body) <= _MAX_HEADING_CHARS):
+        return False
+    if body.endswith(("。", "，", "；")):
+        return False
+    if len(_HEADING_CJK.findall(body)) < 2:
+        return False
+    if "〃" in body or _HEADING_FIGURES.search(body):
+        return False
+    return not (_HEADING_CROSSREF.search(body) or _HEADING_TOC.search(body))
+
+
+def _note_heading(text: str) -> str | None:
+    """The first numbered note heading in a page's opening window, if any."""
+    for match in _NOTE_HEADING.finditer(text[:800]):
+        body = match.group(1).strip()
+        if _looks_like_heading(body):
+            return body
+    return None
+
+
 # Pre-compiled patterns for speed (MULTILINE so \n works in patterns)
 _COMPILED: dict[str, list[re.Pattern]] = {
-    section: [re.compile(p, re.MULTILINE) for p in patterns]
+    section: [
+        re.compile(rf"(?m)^[ \t]*(?:{_NOTE_NUMBER}[ \t]*)?{p}")
+        if section in _UNANCHORED_SECTIONS
+        else re.compile(p, re.MULTILINE)
+        for p in patterns
+    ]
     for section, patterns in SECTION_PATTERNS.items()
 }
 
@@ -169,11 +226,19 @@ def _detect_section(text: str) -> tuple[str, str] | None:
         for pattern in patterns:
             m = pattern.search(search_window)
             if m:
-                # Extract the matched line as the title
-                start = max(0, m.start() - 5)
-                end = min(len(search_window), m.end() + 40)
-                title_candidate = search_window[start:end].splitlines()[0].strip()
-                return section_type, title_candidate[:100]
+                # The whole matched line is the title. The unanchored patterns
+                # match at a line start, so slicing back from m.start() would
+                # reach into the previous line instead.
+                line_start = search_window.rfind("\n", 0, m.start()) + 1
+                line_end = search_window.find("\n", m.start())
+                line = search_window[
+                    line_start : line_end if line_end != -1 else len(search_window)
+                ].strip()
+                if section_type in _UNANCHORED_SECTIONS:
+                    body = re.sub(rf"^[ \t]*{_NOTE_NUMBER}[ \t]*", "", line)
+                    if not _looks_like_heading(body):
+                        continue
+                return section_type, line[:100]
     return None
 
 
@@ -206,6 +271,18 @@ def split_sections(pages: list[PageText]) -> list[DocumentSection]:
 
     for page in pages:
         detection = _detect_section(page.text)
+        if detection is None:
+            # A numbered note heading is a section boundary in its own right,
+            # and its text is a far better label than any of the nine types:
+            # 無形資產, 所得稅, 營業收入, 不動產、廠房及設備. The type resets to the
+            # generic "note" rather than inheriting, because a note about
+            # 無形資產 sitting inside a stretch typed "risk" is not merely coarse,
+            # it is wrong -- and anything trusting section_type is then misled.
+            # A boring, true type beside a specific title beats a pretty lie.
+            heading = _note_heading(page.text)
+            if heading:
+                detection = ("note", heading)
+
         if detection:
             # Save previous section
             if current_pages:
@@ -355,6 +432,9 @@ _SECTION_BASE_SCORE = {
     "eps_note": 0.85,
     "revenue_note": 0.8,
     "notes": 0.6,
+    # A numbered note carries a real topic heading, so it is at least as useful
+    # as the generic "notes" bucket it replaces.
+    "note": 0.6,
     "accounting_policy": 0.5,
     "auditor": 0.5,
     "equity_statement": 0.7,

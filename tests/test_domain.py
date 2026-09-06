@@ -457,3 +457,88 @@ class TestChunkPageAttribution:
         chunks = build_chunks([section], chunk_size=300, overlap=0)
         assert chunks
         assert all((c["page_start"], c["page_end"]) == (12, 15) for c in chunks)
+
+
+class TestNoteHeadingSections:
+    """Numbered note headings are the boundary signal, and bare keywords are not.
+
+    `風險管理` used to be an unanchored substring, so it matched ordinary prose --
+    financial-holding filings discuss risk management on nearly every notes page
+    -- and fired 418 times across 67 filings, taking 26.9% of all chunks. The
+    patterns now have to look like a heading, and Taiwan's rigid note numbering
+    supplies the real boundaries.
+    """
+
+    @staticmethod
+    def _pages(texts, first=1):
+        from src.parsers.pdf_text_parser import PageText
+
+        return [
+            PageText(page_number=first + i, text=t, char_count=len(t), has_tables=False)
+            for i, t in enumerate(texts)
+        ]
+
+    def test_prose_mentioning_risk_management_does_not_start_a_section(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        prose = "本集團之避險政策係依書面之風險管理政策，以公允價值基礎管理並定期檢視。"
+        sections = split_sections(self._pages([prose]))
+
+        assert [s.section_type for s in sections] == ["other"]
+
+    def test_a_numbered_risk_heading_still_starts_a_risk_section(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(self._pages(["2.風險管理政策\n本集團之政策如下。"]))
+
+        assert sections[0].section_type == "risk"
+
+    def test_a_numbered_note_heading_becomes_its_own_titled_section(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(
+            self._pages(["十、 應收帳款\n明細如下。", "十一、 無形資產\n明細如下。"])
+        )
+
+        assert [(s.section_type, s.title) for s in sections] == [
+            ("note", "應收帳款"),
+            ("note", "無形資產"),
+        ]
+
+    def test_a_note_heading_resets_the_inherited_type_rather_than_keeping_it(self):
+        """A note about 無形資產 inside a risk stretch must not stay typed `risk`.
+
+        A wrong type is worse than a coarse one: anything trusting section_type
+        is actively misled, which is why `note` is the honest label here.
+        """
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(
+            self._pages(["2.風險管理政策\n內容。", "（十二）無形資產\n明細如下。"])
+        )
+
+        assert [s.section_type for s in sections] == ["risk", "note"]
+        assert sections[1].title == "無形資產"
+
+    def test_a_cross_reference_is_not_a_heading(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(
+            self._pages(["四、 重大會計政策之彙總說明請參閱本集團年度報告。"])
+        )
+
+        assert [s.section_type for s in sections] == ["other"]
+
+    def test_a_table_of_contents_row_is_not_a_heading(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(self._pages(["八、 合併財務報表附註 14 ~ 88"]))
+
+        assert [s.section_type for s in sections] == ["other"]
+
+    def test_a_table_row_of_figures_is_not_a_heading(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(self._pages(["1. 台達電子工業股份 1,734,029 100"]))
+
+        assert [s.section_type for s in sections] == ["other"]
