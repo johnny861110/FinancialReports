@@ -1,4 +1,4 @@
-"""Read-only SQLite adapter for the v1 transport layer."""
+"""Read-only PostgreSQL adapter for the v1 transport layer."""
 
 from __future__ import annotations
 
@@ -245,10 +245,25 @@ class APIRepository:
         when a filing has none it degrades to importance order rather than
         returning nothing, so a filing that has not been embedded still answers.
 
-        Results are deduplicated by content. The ingestion pipeline currently
-        stores the same text many times over (94% of rows in the present data
-        set are redundant copies), and without this the caller's bounded chunk
-        budget would be spent returning one passage repeatedly.
+        Results are deduplicated by content, so a caller's bounded chunk budget
+        is never spent showing the same passage twice.
+
+        The duplication that originally forced this is gone: build_chunks
+        discarded which section produced each chunk, so extract reverse-matched
+        on (section_type, section_title) and every section sharing that pair
+        rewrote the same chunks, until 72bae12 fixed it -- and the 2026-08-30
+        re-ingest cleared the affected corpus (19,767 chunks across 67 filings,
+        zero duplicate contents within any single filing). The dedup is
+        therefore a guard now rather than a repair, and is kept deliberately:
+        the write path and the read path fail independently, and it costs about
+        4ms on a query that runs in single-digit milliseconds.
+
+        Sorting on content does prevent the HNSW index on chunk_embeddings from
+        serving this query -- but the planner does not choose that index at this
+        query shape regardless, because every request filters to one filing
+        (~900 chunks, measured 123 for 3661_2025Q1) and pgvector post-filters,
+        so scanning the filing and sorting beats an approximate scan over every
+        embedding in the table.
         """
         params: dict[str, Any] = {"filing_key": filing_key, "limit": limit}
         where = " WHERE f.filing_key=:filing_key"
@@ -256,7 +271,12 @@ class APIRepository:
             where += " AND ds.section_type = ANY(:sections)"
             params["sections"] = list(sections)
 
-        if question_embedding is not None and self._has_embeddings(filing_key):
+        # The `is not None` is implied by uses_semantic_ranking and is repeated
+        # only so the type checker can narrow question_embedding below; the
+        # decision itself stays in the one predicate the endpoint also calls.
+        if question_embedding is not None and self.uses_semantic_ranking(
+            filing_key, question_embedding
+        ):
             params["query_vec"] = str(list(question_embedding))
             distance = "ce.embedding <=> CAST(:query_vec AS vector)"
             inner = (
@@ -281,6 +301,18 @@ class APIRepository:
         with self.store.conn() as conn:
             rows = conn.execute(text(sql), params).fetchall()
         return _dicts(rows)
+
+    def uses_semantic_ranking(
+        self, filing_key: str, question_embedding: list[float] | None
+    ) -> bool:
+        """Whether get_chunks will rank by the question rather than importance.
+
+        Public because the endpoint has to tell the consumer which branch ran.
+        Deriving that from the same predicate get_chunks uses -- rather than
+        re-deriving it at the call site -- is what stops the reported state and
+        the actual behaviour drifting apart.
+        """
+        return question_embedding is not None and self._has_embeddings(filing_key)
 
     def _has_embeddings(self, filing_key: str) -> bool:
         with self.store.conn() as conn:

@@ -24,6 +24,8 @@ from src.api.contracts import (
     PipelineRun,
     Quality,
     ReadinessStatus,
+    RetrievalInfo,
+    RetrievalMode,
     SnapshotValues,
     SourceDocument,
     SourceType,
@@ -119,10 +121,46 @@ def ensure_fields(fields: list[str] | None) -> list[str] | None:
     return list(dict.fromkeys(fields))
 
 
+def retrieval_info(
+    question: str | None, question_embedding: list[float] | None, semantic: bool
+) -> RetrievalInfo:
+    """Describe how evidence was selected, so a degraded path is visible.
+
+    `semantic` must come from APIRepository.uses_semantic_ranking so that what
+    is reported is the branch that actually ran.
+    """
+    if semantic:
+        return RetrievalInfo(mode=RetrievalMode.SEMANTIC, state=DataState.PRESENT)
+    if not question:
+        return RetrievalInfo(
+            mode=RetrievalMode.IMPORTANCE,
+            state=DataState.NOT_APPLICABLE,
+            detail="no question was supplied; chunks are ordered by importance",
+        )
+    if question_embedding is None:
+        return RetrievalInfo(
+            mode=RetrievalMode.IMPORTANCE,
+            state=DataState.PROVIDER_FAILURE,
+            detail=(
+                "the embedding model is unavailable, so the question did not affect "
+                "ranking; chunks are ordered by importance"
+            ),
+        )
+    return RetrievalInfo(
+        mode=RetrievalMode.IMPORTANCE,
+        state=DataState.MISSING,
+        detail=(
+            "this filing has no chunk embeddings, so the question did not affect "
+            "ranking; chunks are ordered by importance. Run `fr embed` for it"
+        ),
+    )
+
+
 def build_envelope(
     bundle: dict[str, Any],
     fields: list[str] | None = None,
     chunks: list[dict[str, Any]] | None = None,
+    retrieval: RetrievalInfo | None = None,
 ) -> FilingEnvelope | ContextEnvelope:
     filing = bundle["filing"]
     pipeline_status = FilingStatus(filing["status"])
@@ -288,7 +326,13 @@ def build_envelope(
         "pipeline_state": [PipelineRun(**item) for item in bundle["pipeline_state"]],
     }
     if chunks is not None:
-        return ContextEnvelope(**base, evidence_chunks=[_evidence_chunk(c) for c in chunks])
+        if retrieval is None:  # pragma: no cover - defensive
+            raise ValueError("a context envelope must report how retrieval ran")
+        return ContextEnvelope(
+            **base,
+            evidence_chunks=[_evidence_chunk(c) for c in chunks],
+            retrieval=retrieval,
+        )
     return FilingEnvelope(**base)
 
 

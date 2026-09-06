@@ -220,3 +220,78 @@ def test_duplicate_content_is_returned_once(retrieval_client):
     contents = [c["content"] for c in chunks]
     assert len(contents) == len(set(contents)), "duplicate content must collapse"
     assert len([c for c in chunks if c["chunk_id"] in (ids["policy"], duplicate_id)]) == 1
+
+
+# ── retrieval degradation is reported, not left to be inferred ────────────────
+#
+# A question can go unused for reasons the caller cannot otherwise detect. Both
+# of them previously produced a well-formed evidence list, ordered by
+# importance, whose only tell was a null retrieval_score.
+
+
+def test_retrieval_reports_semantic_when_the_question_ranked(retrieval_client):
+    ids = retrieval_client.chunk_ids
+    _embed(retrieval_client.store, ids["risk_high"], 1)
+    _embed(retrieval_client.store, ids["policy"], 2)
+
+    import src.api.app as app_module
+
+    original = app_module.encode_question
+    app_module.encode_question = lambda q: _unit_vector(2)
+    try:
+        response = _context(retrieval_client, question="會計政策變更", evidence_limit=3)
+    finally:
+        app_module.encode_question = original
+
+    retrieval = response.json()["retrieval"]
+    assert retrieval["mode"] == "semantic"
+    assert retrieval["state"] == "present"
+    assert retrieval["detail"] is None
+
+
+def test_retrieval_reports_not_applicable_without_a_question(retrieval_client):
+    retrieval = _context(retrieval_client, evidence_limit=3).json()["retrieval"]
+
+    assert retrieval["mode"] == "importance"
+    assert retrieval["state"] == "not_applicable"
+    assert "no question" in retrieval["detail"]
+
+
+def test_retrieval_reports_provider_failure_when_the_model_is_unavailable(retrieval_client):
+    """The `vector` extra absent from a deployment is the case that shipped."""
+    ids = retrieval_client.chunk_ids
+    _embed(retrieval_client.store, ids["policy"], 2)
+
+    import src.api.app as app_module
+
+    original = app_module.encode_question
+    app_module.encode_question = lambda q: None  # what an uninstalled model returns
+    try:
+        response = _context(retrieval_client, question="會計政策變更", evidence_limit=3)
+    finally:
+        app_module.encode_question = original
+
+    body = response.json()
+    assert body["retrieval"]["mode"] == "importance"
+    assert body["retrieval"]["state"] == "provider_failure"
+    assert "embedding model is unavailable" in body["retrieval"]["detail"]
+    # The evidence itself still comes back, and still looks plausible -- which
+    # is precisely why the state field has to say otherwise.
+    assert body["evidence_chunks"]
+    assert all(c["retrieval_score"] is None for c in body["evidence_chunks"])
+
+
+def test_retrieval_reports_missing_when_the_filing_has_no_embeddings(retrieval_client):
+    import src.api.app as app_module
+
+    original = app_module.encode_question
+    app_module.encode_question = lambda q: _unit_vector(2)
+    try:
+        response = _context(retrieval_client, question="會計政策變更", evidence_limit=3)
+    finally:
+        app_module.encode_question = original
+
+    retrieval = response.json()["retrieval"]
+    assert retrieval["mode"] == "importance"
+    assert retrieval["state"] == "missing"
+    assert "no chunk embeddings" in retrieval["detail"]

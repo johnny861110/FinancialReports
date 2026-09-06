@@ -1025,6 +1025,9 @@
             },
             "type": "array",
             "title": "Evidence Chunks"
+          },
+          "retrieval": {
+            "$ref": "#/components/schemas/RetrievalInfo"
           }
         },
         "additionalProperties": false,
@@ -1046,7 +1049,8 @@
           "comparisons",
           "insight_cards",
           "source_documents",
-          "pipeline_state"
+          "pipeline_state",
+          "retrieval"
         ],
         "title": "ContextEnvelope"
       },
@@ -2362,6 +2366,44 @@
           "identity"
         ],
         "title": "RefreshResponse"
+      },
+      "RetrievalInfo": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/RetrievalMode"
+          },
+          "state": {
+            "$ref": "#/components/schemas/DataState"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode",
+          "state"
+        ],
+        "title": "RetrievalInfo",
+        "description": "Whether evidence selection did what the caller asked for.\n\nA question can go unused for reasons the caller cannot otherwise detect --\nthe embedding model missing from the deployment, or the filing never having\nbeen through `fr embed`. Both previously produced a well-formed evidence\nlist, ordered by importance, that was indistinguishable from a semantic\nsearch result apart from a null `retrieval_score` the caller would have had\nto notice. `state` reports it explicitly, using the same DataState\nvocabulary the snapshot path already applies per field."
+      },
+      "RetrievalMode": {
+        "type": "string",
+        "enum": [
+          "semantic",
+          "importance"
+        ],
+        "title": "RetrievalMode",
+        "description": "How `evidence_chunks` were ordered."
       },
       "SnapshotValues": {
         "properties": {

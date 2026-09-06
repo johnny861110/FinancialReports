@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -11,6 +13,7 @@ from typing import Annotated, Any
 from fastapi import BackgroundTasks, Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from src.agent.embedding import encode_question
 from src.api.contracts import (
@@ -38,11 +41,24 @@ from src.api.contracts import (
 )
 from src.api.jobs import JobRegistry
 from src.api.repository import APIRepository
-from src.api.service import APIProblem, build_envelope, ensure_fields, parse_period
+from src.api.service import (
+    APIProblem,
+    build_envelope,
+    ensure_fields,
+    parse_period,
+    retrieval_info,
+)
 from src.domain.identity import FilingIdentity
 from src.domain.taxonomy import ALL_CANONICAL, CANONICAL_BALANCE, FIELD_TO_STATEMENT
 from src.pipeline.run import run_pipeline_async
 from src.storage.store import FilingStore, resolve_database_url
+
+logger = logging.getLogger(__name__)
+
+# Loading a cold embedding model pulls ~400MB. Bound the wait so a slow or
+# unreachable model costs one request its semantic ranking instead of the
+# service its availability.
+_EMBED_TIMEOUT_SECONDS = 20.0
 
 RefreshRunner = Callable[[FilingIdentity, FilingStore, Path], Awaitable[dict[str, Any]]]
 
@@ -230,15 +246,24 @@ def create_app(
         bundle = _get_bundle(repo, stock_code, period)
         # None when no question was asked, or when the embedding model is not
         # installed -- retrieval then falls back to importance ordering rather
-        # than failing the request.
-        question_embedding = encode_question(question) if question else None
+        # than failing the request. Whichever happens is reported back on the
+        # envelope's `retrieval` field, so a caller never has to infer from a
+        # null retrieval_score that its question was ignored.
+        filing_key = bundle["filing"]["filing_key"]
+        question_embedding = await _embed_question(question) if question else None
+        semantic = repo.uses_semantic_ranking(filing_key, question_embedding)
         chunks = repo.get_chunks(
-            bundle["filing"]["filing_key"],
+            filing_key,
             evidence_limit,
             sections=validated_sections,
             question_embedding=question_embedding,
         )
-        result = build_envelope(bundle, selected, chunks)
+        result = build_envelope(
+            bundle,
+            selected,
+            chunks,
+            retrieval=retrieval_info(question, question_embedding, semantic),
+        )
         assert isinstance(result, ContextEnvelope)
         return result
 
@@ -329,6 +354,37 @@ def _validate_query(stock_code: str, period: str, fields: list[str] | None) -> l
     if fields is not None and len(fields) > 40:
         raise APIProblem(422, "too_many_fields", "at most 40 fields are allowed", DataState.MISSING)
     return ensure_fields(fields)
+
+
+async def _embed_question(question: str) -> list[float] | None:
+    """Embed off the event loop, and give up rather than hang.
+
+    encode_question is synchronous and, on a cold cache, downloads and loads a
+    ~400MB model. Called directly from this async handler it blocked the event
+    loop: a single question-bearing request against a stalled download took the
+    whole service down -- every endpoint, the healthcheck included -- for nine
+    hours, with nothing in the logs explaining it. The process stayed up and
+    looked fine from the outside.
+
+    Degrading one request into importance ordering is reported honestly on the
+    envelope's `retrieval` field, so this failure is now visible rather than
+    silent and total.
+    """
+    try:
+        return await asyncio.wait_for(
+            run_in_threadpool(encode_question, question), _EMBED_TIMEOUT_SECONDS
+        )
+    except (TimeoutError, asyncio.TimeoutError):
+        logger.warning(
+            "Embedding the question took longer than %.0fs, so retrieval fell back to "
+            "importance ordering. The model is usually cold or being downloaded; "
+            "mount a warm HuggingFace cache into the container to avoid it.",
+            _EMBED_TIMEOUT_SECONDS,
+        )
+        return None
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Embedding the question failed (%s); falling back", exc)
+        return None
 
 
 def _validate_sections(repo: APIRepository, sections: list[str] | None) -> list[str] | None:

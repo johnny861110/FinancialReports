@@ -1,7 +1,7 @@
 """Transport contracts for FinancialReports API v1.
 
 These models are intentionally separate from persistence and pipeline models so
-the external contract can evolve without coupling consumers to SQLite details.
+the external contract can evolve without coupling consumers to database details.
 """
 
 from __future__ import annotations
@@ -270,8 +270,42 @@ class EvidenceChunk(ContractModel):
     retrieval_score: float | None = None
 
 
+class RetrievalMode(str, Enum):
+    """How `evidence_chunks` were ordered."""
+
+    SEMANTIC = "semantic"
+    """Ranked by cosine distance between the question and chunk embeddings."""
+
+    IMPORTANCE = "importance"
+    """Ranked by the chunker's importance_score; the question did not affect it."""
+
+
+class RetrievalInfo(ContractModel):
+    """Whether evidence selection did what the caller asked for.
+
+    A question can go unused for reasons the caller cannot otherwise detect --
+    the embedding model missing from the deployment, or the filing never having
+    been through `fr embed`. Both previously produced a well-formed evidence
+    list, ordered by importance, that was indistinguishable from a semantic
+    search result apart from a null `retrieval_score` the caller would have had
+    to notice. `state` reports it explicitly, using the same DataState
+    vocabulary the snapshot path already applies per field.
+    """
+
+    mode: RetrievalMode
+    state: DataState
+    """PRESENT when the question ranked the results. NOT_APPLICABLE when no
+    question was asked. PROVIDER_FAILURE when a question was asked but the
+    embedding model was unavailable. MISSING when the filing has no
+    embeddings."""
+
+    detail: str | None = None
+    """Human-readable reason, present whenever `state` is not PRESENT."""
+
+
 class ContextEnvelope(FilingEnvelope):
     evidence_chunks: list[EvidenceChunk] = Field(default_factory=list)
+    retrieval: RetrievalInfo
 
 
 class StockSummary(ContractModel):

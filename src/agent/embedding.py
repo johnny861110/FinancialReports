@@ -81,10 +81,22 @@ def encode(texts: list[str], *, batch_size: int = 64) -> list[list[float]]:
 def encode_question(question: str) -> list[float] | None:
     """Embed one question, or return None when embedding is unavailable.
 
-    Returning None rather than raising lets the API degrade to section
-    filtering instead of failing a request outright.
+    Returning None rather than raising lets the API degrade to importance
+    ordering instead of failing a request outright. Both degraded paths log at
+    warning: this used to return None on the first line with no message at all,
+    so the common failure -- the optional `vector` extra simply not installed --
+    left no trace anywhere, and a caller could not tell a semantic search from
+    a question that was silently ignored. The caller reports the same condition
+    to the consumer; see APIRepository.uses_semantic_ranking.
     """
-    if not question or not is_available():
+    if not question:
+        return None
+    if not is_available():
+        logger.warning(
+            "sentence-transformers is not installed, so the question was not "
+            "embedded and retrieval fell back to importance ordering. Install "
+            "the vector extra (uv sync --extra vector) to enable semantic search."
+        )
         return None
     try:
         return encode([question])[0]
