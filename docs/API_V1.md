@@ -42,6 +42,16 @@ Two distinct 409s and one 503, and the difference matters to a retry policy:
 | 409 | `filing_not_ready` | `true` | The filing exists but has not reached `validated`. Running the pipeline will resolve it. |
 | 409 | `filing_has_no_source_documents` | **`false`** | No source document was ever obtained for this filing. It will **never** resolve on retry; treat it as a permanent data gap for that filing, not as an error. |
 | 503 | `provider_failure` | `true` | The producer or its upstream genuinely failed. |
+| 500 | `internal_error` | `true` | An unhandled producer error. The cause is in the producer's logs, deliberately not in the response. |
+
+Every failure, 500 included, uses the `ErrorResponse` shape — there is no path
+that returns a bare `{"detail": ...}`.
+
+Refresh job failures follow the same rule: `JobResponse.error` carries the
+message for errors this project raises deliberately (they are written to be
+read), and for anything else only the exception type plus a pointer to the
+logs, because third-party error text can carry connection strings and internal
+paths.
 
 `filing_has_no_source_documents` applies to **both** `/snapshot` and
 `/context`. It exists because this case used to answer 503, so a consumer

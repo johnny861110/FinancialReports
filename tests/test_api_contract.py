@@ -322,3 +322,59 @@ def test_a_filing_with_no_source_documents_is_a_conflict_not_an_outage(api_clien
     error = response.json()["error"]
     assert error["code"] == "filing_has_no_source_documents"
     assert error["retryable"] is False
+
+
+def test_a_failed_refresh_job_does_not_echo_third_party_error_text(api_client):
+    """A job error is consumer-facing, so it must not carry internals.
+
+    This path used to do both things an error path must not: it logged nothing,
+    so the cause existed nowhere, and it put str(exc) straight into the job. A
+    driver error carries the connection URL, credentials included.
+    """
+
+    async def _boom(identity, store, output_dir):
+        raise OSError("could not connect to postgresql+psycopg://user:secret@db:5432/financial")
+
+    api_client.app.state.refresh_runner = _boom
+
+    created = api_client.post("/v1/filings/2330/2025Q1/refresh")
+    assert created.status_code == 202
+    job = api_client.get(f"/v1/jobs/{created.json()['job_id']}").json()
+
+    assert job["status"] == "failed"
+    assert "secret" not in job["error"]
+    assert "db:5432" not in job["error"]
+    assert "OSError" in job["error"], "the type is still useful for diagnosis"
+
+
+def test_a_deliberate_pipeline_error_stays_readable_in_the_job(api_client):
+    """Messages this project writes are meant to be read; don't redact those."""
+
+    async def _boom(identity, store, output_dir):
+        raise RuntimeError("no source document could be obtained for 2330_2025Q1")
+
+    api_client.app.state.refresh_runner = _boom
+
+    created = api_client.post("/v1/filings/2330/2025Q1/refresh")
+    job = api_client.get(f"/v1/jobs/{created.json()['job_id']}").json()
+
+    assert job["status"] == "failed"
+    assert "no source document could be obtained for 2330_2025Q1" in job["error"]
+
+
+def test_an_unhandled_error_keeps_the_documented_error_shape(database_url):
+    """A 500 used to return FastAPI's {"detail": ...}, which no consumer parses."""
+    app = create_app(database_url)
+
+    @app.get("/v1/_boom")
+    async def _boom() -> None:
+        raise KeyError("internal detail /app/secret/path")
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/v1/_boom")
+
+    assert response.status_code == 500
+    error = response.json()["error"]
+    assert error["code"] == "internal_error"
+    assert error["retryable"] is True
+    assert "secret" not in response.text

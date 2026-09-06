@@ -123,6 +123,30 @@ def create_app(
             ).model_dump(mode="json"),
         )
 
+    @app.exception_handler(Exception)
+    async def unhandled_handler(request: Request, exc: Exception) -> JSONResponse:
+        """Keep the documented error shape on a 500, and keep the cause internal.
+
+        Without this an unhandled error returned FastAPI's default
+        {"detail": "Internal Server Error"}, so a consumer parsing error.code --
+        which every other failure provides -- got a shape it could not read. The
+        message is deliberately generic: this path exists precisely for errors
+        nobody curated, so their text is the most likely to carry a connection
+        string or an internal path.
+        """
+        logger.exception("Unhandled error serving %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content=ErrorResponse(
+                error=ErrorDetail(
+                    code="internal_error",
+                    message="the producer failed to serve this request",
+                    data_state=DataState.PROVIDER_FAILURE,
+                    retryable=True,
+                )
+            ).model_dump(mode="json"),
+        )
+
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         return JSONResponse(
@@ -332,6 +356,23 @@ def create_app(
     return app
 
 
+# Exceptions this project raises deliberately, whose messages are written to be
+# read by a caller. Anything else is third-party and its text may carry a
+# connection URL with credentials, an internal host, or a container path.
+_CALLER_SAFE_ERRORS = (ValueError, RuntimeError)
+
+
+def _job_error_message(exc: BaseException) -> str:
+    """A job error a consumer can read without leaking internals."""
+    if isinstance(exc, _CALLER_SAFE_ERRORS):
+        return f"{type(exc).__name__}: {exc}"
+    return (
+        f"{type(exc).__name__} during refresh; see the producer logs for the cause "
+        "(the detail is withheld because third-party errors can carry connection "
+        "strings and internal paths)"
+    )
+
+
 async def _execute_refresh(app: FastAPI, job_id: str, identity: FilingIdentity) -> None:
     jobs: JobRegistry = app.state.jobs
     jobs.running(job_id)
@@ -339,7 +380,13 @@ async def _execute_refresh(app: FastAPI, job_id: str, identity: FilingIdentity) 
         result = await app.state.refresh_runner(identity, app.state.store, app.state.output_dir)
         jobs.succeeded(job_id, result)
     except Exception as exc:
-        jobs.failed(job_id, str(exc))
+        # This used to do both of the things an error path must not do: it
+        # logged nothing at all, so the cause existed nowhere, and it put
+        # str(exc) straight into the job a consumer reads -- the same shape that
+        # sent a caller an internal host and port earlier. Log in full, expose
+        # only what is safe to read.
+        logger.exception("Refresh job %s failed for %s", job_id, identity.filing_key)
+        jobs.failed(job_id, _job_error_message(exc))
 
 
 def _validate_identity(stock_code: str, period: str) -> tuple[int, str]:
