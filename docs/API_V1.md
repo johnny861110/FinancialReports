@@ -72,6 +72,24 @@ Compatibility fields are preserved alongside richer sections:
 - `status` is consumer readiness; `pipeline_status` preserves the source
   pipeline lifecycle.
 
+## Field availability
+
+`field_availability` reports, for each of the 34 canonical fields, whether this
+envelope carries a value and why not when it does not. It is consistent with
+the rest of the document by construction: **a field whose value is published is
+never `missing`, and a field declared `present` always carries a value.** Both
+directions are asserted in the contract tests.
+
+`state` reuses `DataState`. A field derived rather than supplied — currently
+`free_cash_flow`, computed from `operating_cash_flow` and `capex` — reports
+`present` with a `reason` naming it as derived, and its `Fact.source_type` is
+`computed`. It is deliberately *not* counted in `quality.structured_source_coverage`:
+that term measures what a source supplied, and a derived value is not evidence
+of that. This is part of why `quality_score` has a ceiling below 1.0.
+
+`reason` is human-readable prose that consumers surface to end users verbatim.
+Treat it as published copy, not an internal note.
+
 ## Units and absence semantics
 
 - `ratio` is decimal-scaled: `0.25` means 25%.

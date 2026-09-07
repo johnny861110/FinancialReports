@@ -149,11 +149,29 @@ class Fact(ContractModel):
 
 
 class FieldAvailability(ContractModel):
+    """Whether this envelope carries a value for one canonical field.
+
+    `state` and the published value are kept consistent by construction: a
+    field the response publishes is never `missing`, and a field it declares
+    `present` always carries a value. They used to be derived separately, and a
+    response could publish free_cash_flow and call it missing in the same
+    document.
+    """
+
     field: str
     statement: str
     unit: str
     state: DataState
-    reason: str | None = None
+    reason: str | None = Field(
+        default=None,
+        description=(
+            "Human-readable explanation, present whenever the state needs one: "
+            "not supplied by a source, not applicable to this sector, or "
+            "derived from other canonical fields. Consumers surface this text "
+            "to end users verbatim, so treat it as published copy rather than "
+            "an internal note -- rewording it changes what people read."
+        ),
+    )
 
 
 class Metric(ContractModel):
