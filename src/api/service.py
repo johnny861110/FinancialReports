@@ -227,10 +227,6 @@ def build_envelope(
         ):
             preferred[fact.field] = fact
 
-    snapshot_data = {
-        name: preferred[name].value if name in preferred else None for name in SNAPSHOT_FIELDS
-    }
-    snapshot_data["eps"] = snapshot_data["eps_basic"]
     metrics = [
         Metric(
             name=item["name"],
@@ -243,8 +239,30 @@ def build_envelope(
         for item in bundle["metrics"]
     ]
     metric_map = {item.name: item.value for item in metrics}
-    if snapshot_data["free_cash_flow"] is None and "free_cash_flow" in metric_map:
-        snapshot_data["free_cash_flow"] = metric_map["free_cash_flow"]
+
+    # One resolution of "what value does this envelope actually carry for each
+    # canonical field", read by everything downstream.
+    #
+    # It used to be two: the snapshot was facts plus a special case that
+    # back-filled free_cash_flow from the metrics table, while availability and
+    # missing_fields were derived from facts alone. So the same response
+    # published free_cash_flow = 348,213,466 and declared it `missing`, on all
+    # 69 filings -- a document contradicting itself, and a consumer duly told
+    # its users the figure was unavailable while holding it. Resolving once
+    # makes that class of contradiction unrepresentable rather than fixing the
+    # one field: any future computed canonical field is covered automatically.
+    resolved: dict[str, tuple[float, SourceType]] = {
+        name: (fact.value, fact.source_type) for name, fact in preferred.items()
+    }
+    for name in ALL_CANONICAL:
+        if name not in resolved and name in metric_map:
+            # Derived rather than supplied, which is what `computed` is for.
+            resolved[name] = (metric_map[name], SourceType.COMPUTED)
+
+    snapshot_data = {
+        name: resolved[name][0] if name in resolved else None for name in SNAPSHOT_FIELDS
+    }
+    snapshot_data["eps"] = snapshot_data["eps_basic"]
 
     updated_at = _as_datetime(filing["updated_at"])
     latest_source = max(
@@ -274,7 +292,7 @@ def build_envelope(
     is_bank = filing["stock_code"].startswith("28")
     not_applicable = BANK_NOT_APPLICABLE if is_bank else BANK_ONLY
     missing_fields = sorted(
-        name for name in selected if name not in preferred and name not in not_applicable
+        name for name in selected if name not in resolved and name not in not_applicable
     )
     validation_failures = [
         ValidationFailure(
@@ -299,13 +317,15 @@ def build_envelope(
     failed_state = DataState.PROVIDER_FAILURE if latest_failed else DataState.MISSING
     availability = []
     for name in sorted(selected):
-        state = DataState.PRESENT if name in preferred else failed_state
+        state = DataState.PRESENT if name in resolved else failed_state
         reason = None
         if (is_bank and name in BANK_NOT_APPLICABLE) or (not is_bank and name in BANK_ONLY):
             state = DataState.NOT_APPLICABLE
             reason = "field is not applicable to this company sector"
         elif state is DataState.MISSING:
             reason = "expected field was not supplied by available sources"
+        elif resolved[name][1] is SourceType.COMPUTED:
+            reason = "derived from other canonical fields rather than supplied by a source"
         availability.append(
             FieldAvailability(
                 field=name,

@@ -378,3 +378,69 @@ def test_an_unhandled_error_keeps_the_documented_error_shape(database_url):
     assert error["code"] == "internal_error"
     assert error["retryable"] is True
     assert "secret" not in response.text
+
+
+class TestFieldAvailabilityMatchesWhatIsPublished:
+    """A response must not contradict itself about its own contents.
+
+    `snapshot` back-filled free_cash_flow from the metrics table while
+    `field_availability` and `quality.missing_fields` were derived from facts
+    alone, so every one of 69 filings published a correct free_cash_flow and
+    declared the same field `missing` in the same document. A consumer told its
+    users the figure was unavailable while holding it.
+
+    The invariant is two-directional: a published value implies `present`, and
+    `present` implies a published value.
+    """
+
+    @staticmethod
+    def _envelope(client):
+        response = client.get("/v1/filings/2330/2025Q1/snapshot")
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    def test_a_published_value_is_never_declared_missing(self, api_client):
+        body = self._envelope(api_client)
+        states = {a["field"]: a["state"] for a in body["field_availability"]}
+
+        contradictions = [
+            field
+            for field, value in body["snapshot"].items()
+            if value is not None and states.get(field) == "missing"
+        ]
+
+        assert not contradictions, f"published but declared missing: {contradictions}"
+
+    def test_a_present_field_always_carries_a_value(self, api_client):
+        body = self._envelope(api_client)
+        snapshot = body["snapshot"]
+        present = {a["field"] for a in body["field_availability"] if a["state"] == "present"}
+
+        empty = [f for f in present if f in snapshot and snapshot[f] is None]
+
+        assert not empty, f"declared present but published no value: {empty}"
+
+    def test_missing_fields_agrees_with_availability(self, api_client):
+        """quality.missing_fields was the second derivation with the same input."""
+        body = self._envelope(api_client)
+        states = {a["field"]: a["state"] for a in body["field_availability"]}
+
+        for field in body["quality"]["missing_fields"]:
+            assert states.get(field) != "present", (
+                f"{field} is listed as a missing field while availability says present"
+            )
+
+    def test_a_computed_canonical_field_is_present_and_says_it_is_derived(self, api_client):
+        """free_cash_flow is a metric, not a fact, and is still a canonical field."""
+        store = api_client.app.state.store
+        filing_id = store.get_filing_id("2330_2025Q1")
+        store.save_metric(
+            filing_id, "free_cash_flow", 348_213_466.0, formula="operating_cash_flow + capex"
+        )
+
+        body = self._envelope(api_client)
+        entry = next(a for a in body["field_availability"] if a["field"] == "free_cash_flow")
+
+        assert body["snapshot"]["free_cash_flow"] == 348_213_466.0
+        assert entry["state"] == "present"
+        assert "derived" in (entry["reason"] or "")
