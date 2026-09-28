@@ -6,6 +6,74 @@
 
 ## [Unreleased]
 
+### Added
+
+- `ContextEnvelope.retrieval` reports how evidence was selected (`mode`,
+  `state`, `detail`), so a caller can tell a semantic search from a question
+  that was silently ignored. Uses the existing `DataState` vocabulary.
+- `note` section type: numbered filing notes become their own sections titled
+  with the heading text, recovering 885 distinct topic labels across the corpus.
+- `tests/test_pipeline.py` — first tests for the ingest stage.
+- `ContextEnvelope.corpus_version` — an opaque token for a filing's chunk
+  corpus. `chunk_id` is stable only within one extraction and a re-extract
+  renumbers into an overlapping range, so a stale citation silently resolves to
+  different text rather than failing. Compare it before citing a cached id.
+- `409 filing_has_no_source_documents` (retryable false) on `/snapshot` and
+  `/context`, replacing the 503 this case used to answer. A consumer retrying
+  on `>= 500` was burning its budget on a permanent condition and reporting the
+  whole producer as unavailable over a single empty filing.
+- `liabilities_not_negative` validation rule. FinMind returns `AccountsPayable`
+  below zero for some companies and not others; the value is left as the source
+  gave it and the filing carries the failure instead of a guessed correction.
+
+### Changed
+
+- Ingest fails when no source document could be obtained, instead of marking
+  the filing `ingested` and reporting `completed`.
+- Section detection: the five keyword patterns must now look like headings.
+  `風險管理` matched ordinary prose and had taken 26.9% of all chunks; it is now
+  1.4%.
+- Dropped the HNSW index on `chunk_embeddings`. Every query filters to one
+  filing, so exact search is both faster and lossless here.
+- `fr embed` documented as a host/GPU job; the container stays CPU-only.
+- Removed the `vector-store` (chromadb) extra and unused dependencies
+  (`pandas`, `python-dateutil`, `pyyaml`, `pypdfium2`, `tiktoken`, the whole
+  `ocr` extra). `uv.lock` went from 164 to 85 packages.
+- The api image installs the `pdf` extra; without it the container extracted
+  nothing while reporting success.
+- A filing with no source document is demoted out of any consumer-ready status
+  rather than presenting as ready. The ingest guard prevents new occurrences;
+  this corrects the three that predated it.
+- `quality_score`'s ceiling is documented where the score is defined and
+  specified. It cannot reach 1.0 by design: source coverage and evidence
+  coverage are both structurally short, so ~0.818 is full marks.
+- FinMind is documented as the deliberate and only structured source. Every
+  fact carries `source_type = finmind` and no XBRL or iXBRL document has ever
+  been obtained; that is the intended shape, not a gap.
+
+### Fixed
+
+- `EquityAttributableToOwnersOfParent` was mapped to
+  `net_income_attributable_to_parent`, putting a balance-sheet equity figure
+  into an income-statement field — 28x the real net income on 3661_2025Q1. Now
+  maps to `equity_attributable_to_parent`, and the 69 wrong stored rows were
+  removed so the field reports absent-with-state.
+- FinMind amounts are converted to thousands unconditionally. The previous
+  `abs(value) >= 1000` guard left any amount under NT$1,000 undivided and then
+  labelled it thousands — a silent 1000x on the smallest values.
+- The embedding call no longer blocks the event loop. A stalled model download
+  had taken the entire API down — every endpoint including the healthcheck —
+  for nine hours while the process stayed up.
+- The api container mounts a warm HuggingFace cache and runs with
+  `HF_HUB_OFFLINE=1`, so it never fetches a model at request time.
+
+### Removed
+
+- `scripts/migrate_sqlite_to_postgres.py` and `scripts/verify_parity.py`. The
+  SQLite migration completed in `5cc2552`; these were the last `sqlite3` imports
+  in the tree.
+
+
 ## [3.0.0] - 2026-08-28
 
 ### Added

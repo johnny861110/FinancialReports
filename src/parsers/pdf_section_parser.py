@@ -6,7 +6,7 @@ Splits document pages into labeled sections and then into overlapping chunks.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from src.parsers.pdf_text_parser import PageText
 
@@ -49,9 +49,113 @@ SECTION_PATTERNS: dict[str, list[str]] = {
     "risk": [r"風險管理"],
 }
 
+# Supplementary schedules (附表) are their own thing: endorsements, securities
+# held, related-party purchases and sales, loans to others. They carry no
+# heading the statement patterns above recognise, so without this every one of
+# them was absorbed by whatever section preceded it -- one filing had a
+# 92-page "accounting_policy" section that was mostly schedules.
+#
+# Detection needs all three parts, measured over 7,875 pages:
+#   * the marker alone fires on 1,317 pages, but 136 of those are body text
+#     saying "請詳附表四" -- a cross-reference, not a schedule;
+#   * requiring a schedule header (unit line or 民國 date) leaves 479 genuine
+#     starts;
+#   * the 702 marker pages without a header are continuations that do not
+#     repeat it -- 75% fall within 12 pages of a start -- and correctly inherit
+#     the section rather than beginning a new one.
+_SCHEDULE_MARKER = re.compile(r"附表[一二三四五六七八九十]", re.MULTILINE)
+_SCHEDULE_HEADER = re.compile(r"單位：新台幣|民國[0-9一二三四五六七八九十]+年", re.MULTILINE)
+_SCHEDULE_CROSSREF = re.compile(r"[詳見參閱][^。]{0,6}附表", re.MULTILINE)
+
+
+def _detect_schedule(text: str) -> tuple[str, str] | None:
+    """Detect the first page of a supplementary schedule."""
+    if not _SCHEDULE_MARKER.search(text):
+        return None
+    if _SCHEDULE_CROSSREF.search(text):
+        return None
+    if not _SCHEDULE_HEADER.search(text):
+        return None
+    match = _SCHEDULE_MARKER.search(text)
+    return "schedule", match.group(0) if match else "附表"
+
+
+# Taiwan filing notes are rigidly numbered, and that numbering is the only
+# regular section boundary the document actually carries: 十、應收帳款,
+# （四）財務風險管理目的與政策, 2.風險管理政策. Detecting it recovers ~950 distinct
+# note headings across the corpus, against the nine hard-coded types below.
+_NOTE_NUMBER = (
+    r"(?:[（(][一二三四五六七八九十百]+[)）]"  # （四）
+    r"|[一二三四五六七八九十百]{1,3}、"  # 十、
+    r"|\d{1,2}[.、]"  # 12.
+    r"|[A-Za-z][.、])"  # B.
+)
+_NOTE_HEADING = re.compile(rf"(?m)^[ \t]*{_NOTE_NUMBER}[ \t]*(\S[^\n]{{0,28}})$")
+
+# These four patterns are bare substrings with no structural anchor, unlike the
+# statement titles which require a 民國 date nearby. `風險管理` in particular
+# matches ordinary prose -- "係依書面之風險管理政策", "風險管理部門依相關業務管理
+# 部門" -- and financial-holding filings discuss risk management on nearly every
+# notes page, so it fired 418 times across 67 filings and took 26.9% of all
+# chunks. Requiring them to look like a heading is what stops that.
+_UNANCHORED_SECTIONS = frozenset({"notes", "auditor", "accounting_policy", "eps_note", "risk"})
+
+# A heading is terse, unpunctuated Chinese: not a cross-reference, not a
+# table-of-contents row with a page range, not a table cell full of figures.
+_HEADING_CROSSREF = re.compile(r"請?參閱|詳見|詳如|見附註")
+# A table-of-contents row: dot leaders, a page range, or a bare trailing page
+# number. The last of these matters more than it looks -- a filing's contents
+# page is a column of lines shaped exactly like numbered note headings
+# (`(一) 公司沿革 14`), and taking them turns the contents page into dozens of
+# one-line sections. Real note headings do not end in an arabic page number.
+_HEADING_TOC = re.compile(r"\d+\s*[~～-]\s*\d+\s*$|\.{4,}|\s\d{1,4}\s*$")
+_HEADING_CJK = re.compile(r"[一-鿿]")
+_HEADING_FIGURES = re.compile(r"\d[\d,]{2,}")
+_MAX_HEADING_CHARS = 30
+
+
+def _looks_like_heading(body: str) -> bool:
+    """Whether a line's text (after any numbering) reads as a section heading."""
+    body = body.strip()
+    if not (2 <= len(body) <= _MAX_HEADING_CHARS):
+        return False
+    if body.endswith(("。", "，", "；")):
+        return False
+    if len(_HEADING_CJK.findall(body)) < 2:
+        return False
+    if "〃" in body or _HEADING_FIGURES.search(body):
+        return False
+    return not (_HEADING_CROSSREF.search(body) or _HEADING_TOC.search(body))
+
+
+def _note_headings(text: str) -> list[tuple[str, int]]:
+    """Every numbered note heading on a page, with where each one starts.
+
+    Both parts matter. The offset, because a heading routinely appears
+    part-way down a page and everything above it belongs to the previous note.
+    All of them, because several short notes share a page.
+
+    Searches the whole page rather than an opening window: the window was a
+    guard against keyword patterns matching prose, and _looks_like_heading now
+    does that job structurally -- line start, numbered, terse, unpunctuated,
+    predominantly CJK.
+    """
+    out: list[tuple[str, int]] = []
+    for match in _NOTE_HEADING.finditer(text):
+        body = match.group(1).strip()
+        if _looks_like_heading(body):
+            out.append((body, match.start()))
+    return out
+
+
 # Pre-compiled patterns for speed (MULTILINE so \n works in patterns)
 _COMPILED: dict[str, list[re.Pattern]] = {
-    section: [re.compile(p, re.MULTILINE) for p in patterns]
+    section: [
+        re.compile(rf"(?m)^[ \t]*(?:{_NOTE_NUMBER}[ \t]*)?{p}")
+        if section in _UNANCHORED_SECTIONS
+        else re.compile(p, re.MULTILINE)
+        for p in patterns
+    ]
     for section, patterns in SECTION_PATTERNS.items()
 }
 
@@ -75,28 +179,101 @@ class DocumentSection:
     page_start: int
     page_end: int
     content: str
+    # Where each page begins and ends inside `content`, as (page_number, start,
+    # end) with end exclusive. Sections concatenate their pages, so without this
+    # a chunk's character offsets cannot be traced back to the page it came
+    # from. Left empty by callers that build a section by hand; chunks then fall
+    # back to the section's own span.
+    page_spans: list[tuple[int, int, int]] = field(default_factory=list)
 
 
-def _detect_section(text: str) -> tuple[str, str] | None:
+def _join_pages(pages: list[PageText]) -> tuple[str, list[tuple[int, int, int]]]:
+    """Concatenate page texts, recording each page's range in the result."""
+    separator = "\n\n"
+    parts: list[str] = []
+    spans: list[tuple[int, int, int]] = []
+    offset = 0
+    for index, page in enumerate(pages):
+        if index:
+            offset += len(separator)
+        parts.append(page.text)
+        spans.append((page.page_number, offset, offset + len(page.text)))
+        offset += len(page.text)
+    return separator.join(parts), spans
+
+
+def _pages_for_range(
+    spans: list[tuple[int, int, int]], start: int, end: int, fallback: tuple[int, int]
+) -> tuple[int, int]:
+    """The first and last page a half-open character range touches."""
+    touched = [
+        page for page, page_start, page_end in spans if page_start < end and start < page_end
+    ]
+    if not touched:
+        # A range landing entirely in a separator touches no page; attribute it
+        # to the last page that starts at or before it rather than to the whole
+        # section.
+        earlier = [page for page, page_start, _ in spans if page_start <= start]
+        if earlier:
+            return earlier[-1], earlier[-1]
+        return fallback
+    return touched[0], touched[-1]
+
+
+def _detect_section(text: str) -> tuple[str, str, int] | None:
     """
     Detect if a page starts a new section.
-    Returns (section_type, matched_title) or None.
+    Returns (section_type, matched_title, offset_of_the_heading) or None.
 
     Only examines the first 800 characters of the page so that
     incidental keyword mentions deep inside body text don't trigger
-    a false section boundary.
+    a false section boundary. Schedules are the exception: their marker
+    averages character 982 on a page, because these are wide landscape
+    tables whose extraction order puts the heading block late. They are
+    matched over the whole page instead, and rely on the cross-reference
+    exclusion rather than position to avoid false boundaries.
     """
-    search_window = text[:800]
+    boundaries = section_boundaries(text)
+    return boundaries[0] if boundaries else None
+
+
+def section_boundaries(text: str) -> list[tuple[str, str, int]]:
+    """Every section start on a page, ordered by position.
+
+    A page routinely carries more than one note -- Taiwan filing notes are
+    short, and several fit on a page -- and returning only the first meant the
+    rest were swallowed by whichever section happened to be open. Combined with
+    a boundary that snapped to the top of the page, a section could open with
+    the tail of its predecessor and close over its successor.
+
+    Schedules are returned as a single whole-page boundary: their marker sits
+    late in the extraction order of a wide landscape table, so its position
+    says nothing about where the schedule begins.
+    """
+    schedule = _detect_schedule(text)
+    if schedule:
+        return [(schedule[0], schedule[1], 0)]
+
+    found: dict[int, tuple[str, str, int]] = {}
     for section_type, patterns in _COMPILED.items():
         for pattern in patterns:
-            m = pattern.search(search_window)
-            if m:
-                # Extract the matched line as the title
-                start = max(0, m.start() - 5)
-                end = min(len(search_window), m.end() + 40)
-                title_candidate = search_window[start:end].splitlines()[0].strip()
-                return section_type, title_candidate[:100]
-    return None
+            for m in pattern.finditer(text):
+                line_start = text.rfind("\n", 0, m.start()) + 1
+                line_end = text.find("\n", m.start())
+                line = text[line_start : line_end if line_end != -1 else len(text)].strip()
+                if section_type in _UNANCHORED_SECTIONS:
+                    body = re.sub(rf"^[ \t]*{_NOTE_NUMBER}[ \t]*", "", line)
+                    if not _looks_like_heading(body):
+                        continue
+                # A typed match wins over a bare note heading at the same line;
+                # first pattern wins between two typed ones, matching the old
+                # precedence order of _COMPILED.
+                found.setdefault(line_start, (section_type, line[:100], line_start))
+
+    for heading, offset in _note_headings(text):
+        found.setdefault(offset, ("note", heading, offset))
+
+    return [found[k] for k in sorted(found)]
 
 
 def split_sections(pages: list[PageText]) -> list[DocumentSection]:
@@ -111,40 +288,68 @@ def split_sections(pages: list[PageText]) -> list[DocumentSection]:
     current_type = "other"
     current_title = "Document Start"
     current_start = pages[0].page_number
-    current_content_parts: list[str] = []
+    current_pages: list[PageText] = []
 
-    for page in pages:
-        detection = _detect_section(page.text)
-        if detection:
-            # Save previous section
-            if current_content_parts:
-                sections.append(
-                    DocumentSection(
-                        section_type=current_type,
-                        title=current_title,
-                        page_start=current_start,
-                        page_end=page.page_number - 1,
-                        content="\n\n".join(current_content_parts),
-                    )
-                )
-            current_type, current_title = detection
-            current_start = page.page_number
-            current_content_parts = [page.text]
-        else:
-            current_content_parts.append(page.text)
-
-    # Flush last section
-    if current_content_parts:
-        last_page = pages[-1].page_number
+    def flush(page_end: int) -> None:
+        content, spans = _join_pages(current_pages)
         sections.append(
             DocumentSection(
                 section_type=current_type,
                 title=current_title,
                 page_start=current_start,
-                page_end=last_page,
-                content="\n\n".join(current_content_parts),
+                page_end=page_end,
+                content=content,
+                page_spans=spans,
             )
         )
+
+    def fragment(page: PageText, text: str) -> PageText:
+        """Part of a page, keeping the page number so citations stay right."""
+        return PageText(
+            page_number=page.page_number,
+            text=text,
+            char_count=len(text),
+            has_tables=page.has_tables,
+        )
+
+    for page in pages:
+        # Every boundary on the page, in order. A page can introduce several
+        # notes, and the text above the first boundary belongs to whatever was
+        # already open -- so the page is cut at the headings rather than
+        # assigned whole to one of them.
+        #
+        # Before this, a heading part-way down a page started its section at
+        # the top of that page and any later heading on the same page was not
+        # seen at all. On 2330_2026Q1 「十二、存 貨」 begins at character 711 of
+        # a 956-character page, so the section titled 存 貨 opened with two
+        # chunks of 十一、應收帳款 and a citation read 存貨 over text about
+        # receivables.
+        boundaries = section_boundaries(page.text)
+
+        if not boundaries:
+            current_pages.append(page)
+            continue
+
+        cuts = [b[2] for b in boundaries] + [len(page.text)]
+
+        head = page.text[: cuts[0]]
+        if head.strip():
+            current_pages.append(fragment(page, head))
+            flush(page.page_number)
+        elif current_pages:
+            flush(page.page_number - 1)
+
+        for index, (section_type, title, _) in enumerate(boundaries):
+            body = page.text[cuts[index] : cuts[index + 1]]
+            if index:
+                flush(page.page_number)
+            current_type, current_title = section_type, title
+            current_start = page.page_number
+            current_pages = [fragment(page, body)]
+
+    # Flush last section
+    if current_pages:
+        flush(pages[-1].page_number)
 
     return sections
 
@@ -173,6 +378,16 @@ def build_chunks(
             overlap=overlap,
         )
         for idx, (text_chunk, char_start, char_end) in enumerate(section_chunks):
+            # A chunk covers a few hundred characters of a section that may run
+            # for ninety pages. Copying the section's own page_start onto it --
+            # which is what this did -- makes every citation in that section
+            # point at its first page.
+            page_start, page_end = _pages_for_range(
+                section.page_spans,
+                char_start,
+                char_end,
+                (section.page_start, section.page_end),
+            )
             chunks.append(
                 {
                     # Which section produced this chunk. Callers must attribute
@@ -182,8 +397,8 @@ def build_chunks(
                     "section_index": section_index,
                     "section_type": section.section_type,
                     "section_title": section.title,
-                    "page_start": section.page_start,
-                    "page_end": section.page_end,
+                    "page_start": page_start,
+                    "page_end": page_end,
                     "chunk_index": idx,
                     "content": text_chunk,
                     "char_offset_start": char_start,
@@ -219,7 +434,15 @@ def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[tuple[str, int
         chunk = text[pos:end]
         if chunk.strip():
             results.append((chunk, pos, end))
-        # Advance with overlap
+        if end >= length:
+            # Text consumed. Stepping back by `overlap` here would emit one
+            # more chunk that is wholly the tail of the one just added, which
+            # is what any section shorter than chunk_size used to do: a 123
+            # character section produced its 123 characters and then a
+            # 50 character duplicate. Harmless-looking, and it filled the
+            # corpus with near-duplicate fragments that compete with their own
+            # parent in retrieval.
+            break
         pos = end - overlap if end - overlap > pos else end
 
     return results
@@ -271,6 +494,9 @@ _SECTION_BASE_SCORE = {
     "eps_note": 0.85,
     "revenue_note": 0.8,
     "notes": 0.6,
+    # A numbered note carries a real topic heading, so it is at least as useful
+    # as the generic "notes" bucket it replaces.
+    "note": 0.6,
     "accounting_policy": 0.5,
     "auditor": 0.5,
     "equity_statement": 0.7,

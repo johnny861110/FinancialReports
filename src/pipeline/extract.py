@@ -68,7 +68,11 @@ async def run_extract_async(
                 _PDF_EXECUTOR, _parse_ixbrl_sync, fk, filing_id, identity, ixbrl_path, store
             )
 
-        # ── FinMind API fallback (scrape structured data when XBRL unavailable) ─
+        # ── FinMind: the structured source in practice ────────────────────────
+        # Written as a fallback and still shaped like one, but FinMind supplies
+        # 100% of the canonical facts in the corpus -- no filing has ever
+        # carried an XBRL or iXBRL document. That is by design; the branch above
+        # is vestigial rather than broken. See src/sources/finmind_client.py.
         if not has_xbrl:
             fm_count = await _fetch_finmind_facts(identity, filing_id, store)
             if fm_count:

@@ -97,3 +97,14 @@ raw/
 # Graphify output (generated artifacts)
 graphify-out/
 src/graphify-out/
+
+# Agent tooling. CLAUDE.md, AGENTS.md and .claude/skills/ are tracked on
+# purpose: they carry the project's working rules (run impact analysis before
+# editing a symbol, never rename by find-and-replace) and the skill files those
+# rules route to, and a rule only works if every contributor's agent has it.
+# They are GitNexus output and their symbol counts go stale on reindex; that
+# costs a few lines of diff, where losing the rules costs correctness.
+#
+# These two are genuinely machine-local and stay ignored:
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

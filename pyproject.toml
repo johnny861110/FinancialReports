@@ -15,24 +15,19 @@ dependencies = [
     "uvicorn>=0.30.0,<1.0.0",
     "sqlalchemy>=2.0.0",
     "psycopg[binary]>=3.2.0",
-    "pandas>=2.0.0",
     "typer>=0.12.0",
     "rich>=13.0.0",
-    "python-dateutil>=2.9.0",
-    "pyyaml>=6.0.0",
 ]
 
 [project.optional-dependencies]
-pdf    = ["pdfplumber>=0.11.0", "pypdfium2>=4.0.0"]
-ocr    = ["paddleocr>=2.7.0", "paddlepaddle>=2.6.0", "opencv-python>=4.9.0"]
-vector = ["chromadb>=0.5.0", "sentence-transformers>=3.0.0"]
-llm    = ["openai>=1.30.0", "tiktoken>=0.7.0"]
-all    = [
-    "pdfplumber>=0.11.0",
-    "pypdfium2>=4.0.0",
-    "openai>=1.30.0",
-    "tiktoken>=0.7.0",
-]
+pdf    = ["pdfplumber>=0.11.0"]
+# sentence-transformers is what embedding.py uses to produce the vectors. The
+# vectors themselves live in Postgres (chunk_embeddings, VECTOR(768) + HNSW via
+# pgvector), so there is no separate vector store to depend on.
+vector = ["sentence-transformers>=3.0.0", "torch>=2.7.0"]
+llm    = ["openai>=1.30.0"]
+# Self-referential so it cannot drift out of step with the extras above.
+all    = ["financial-reports[pdf,vector,llm]"]
 
 [project.scripts]
 fr = "src.cli:app"
@@ -69,6 +64,21 @@ packages = ["src"]
 [tool.uv]
 # Install dev group by default when running `uv sync`
 default-groups = ["dev"]
+
+# torch's default PyPI wheel is the CUDA build and drags in ~5GB of nvidia-*
+# runtime libraries + triton, none of which this deployment can use (the api
+# container has no GPU passthrough configured; see docker-compose.yml). The
+# embedding workload here is single-question query encoding plus per-filing
+# chunk batches in the hundreds -- CPU is already sub-second for the former
+# and a few seconds for the latter, so there is no real benefit to pay ~5GB
+# of image size for. Pin to the CPU-only wheel index instead.
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 # ---------------------------------------------------------------------------
 # Ruff — replaces flake8 + black + isort

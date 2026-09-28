@@ -24,6 +24,8 @@ from src.api.contracts import (
     PipelineRun,
     Quality,
     ReadinessStatus,
+    RetrievalInfo,
+    RetrievalMode,
     SnapshotValues,
     SourceDocument,
     SourceType,
@@ -119,13 +121,69 @@ def ensure_fields(fields: list[str] | None) -> list[str] | None:
     return list(dict.fromkeys(fields))
 
 
+def retrieval_info(
+    question: str | None, question_embedding: list[float] | None, semantic: bool
+) -> RetrievalInfo:
+    """Describe how evidence was selected, so a degraded path is visible.
+
+    `semantic` must come from APIRepository.uses_semantic_ranking so that what
+    is reported is the branch that actually ran.
+    """
+    if semantic:
+        return RetrievalInfo(mode=RetrievalMode.SEMANTIC, state=DataState.PRESENT)
+    if not question:
+        return RetrievalInfo(
+            mode=RetrievalMode.IMPORTANCE,
+            state=DataState.NOT_APPLICABLE,
+            detail="no question was supplied; chunks are ordered by importance",
+        )
+    if question_embedding is None:
+        return RetrievalInfo(
+            mode=RetrievalMode.IMPORTANCE,
+            state=DataState.PROVIDER_FAILURE,
+            detail=(
+                "the embedding model is unavailable, so the question did not affect "
+                "ranking; chunks are ordered by importance"
+            ),
+        )
+    return RetrievalInfo(
+        mode=RetrievalMode.IMPORTANCE,
+        state=DataState.MISSING,
+        detail=(
+            "this filing has no chunk embeddings, so the question did not affect "
+            "ranking; chunks are ordered by importance. Run `fr embed` for it"
+        ),
+    )
+
+
 def build_envelope(
     bundle: dict[str, Any],
     fields: list[str] | None = None,
     chunks: list[dict[str, Any]] | None = None,
+    retrieval: RetrievalInfo | None = None,
+    corpus_version: str | None = None,
 ) -> FilingEnvelope | ContextEnvelope:
     filing = bundle["filing"]
     pipeline_status = FilingStatus(filing["status"])
+
+    # Checked before the provider-failure branch below, which would otherwise
+    # claim this. A filing with no source document fails its pipeline by
+    # design, but 503 says the producer is unavailable and is marked
+    # retryable -- so a consumer backing off and retrying reports the whole
+    # service as down over one permanently empty filing, burns its retry
+    # budget on something that can never succeed, and loses the ability to
+    # tell this apart from a real outage. It is a conflict with the filing's
+    # own state, and it will not resolve on its own.
+    if not bundle["source_documents"]:
+        raise APIProblem(
+            409,
+            "filing_has_no_source_documents",
+            "filing exists but no source document was ever obtained for it",
+            DataState.MISSING,
+            retryable=False,
+            details={"pipeline_status": pipeline_status.value},
+        )
+
     latest_failed = any(item["status"] == "failed" for item in bundle["pipeline_state"][-4:])
     if pipeline_status is FilingStatus.FAILED or latest_failed:
         raise APIProblem(
@@ -169,10 +227,6 @@ def build_envelope(
         ):
             preferred[fact.field] = fact
 
-    snapshot_data = {
-        name: preferred[name].value if name in preferred else None for name in SNAPSHOT_FIELDS
-    }
-    snapshot_data["eps"] = snapshot_data["eps_basic"]
     metrics = [
         Metric(
             name=item["name"],
@@ -185,8 +239,30 @@ def build_envelope(
         for item in bundle["metrics"]
     ]
     metric_map = {item.name: item.value for item in metrics}
-    if snapshot_data["free_cash_flow"] is None and "free_cash_flow" in metric_map:
-        snapshot_data["free_cash_flow"] = metric_map["free_cash_flow"]
+
+    # One resolution of "what value does this envelope actually carry for each
+    # canonical field", read by everything downstream.
+    #
+    # It used to be two: the snapshot was facts plus a special case that
+    # back-filled free_cash_flow from the metrics table, while availability and
+    # missing_fields were derived from facts alone. So the same response
+    # published free_cash_flow = 348,213,466 and declared it `missing`, on all
+    # 69 filings -- a document contradicting itself, and a consumer duly told
+    # its users the figure was unavailable while holding it. Resolving once
+    # makes that class of contradiction unrepresentable rather than fixing the
+    # one field: any future computed canonical field is covered automatically.
+    resolved: dict[str, tuple[float, SourceType]] = {
+        name: (fact.value, fact.source_type) for name, fact in preferred.items()
+    }
+    for name in ALL_CANONICAL:
+        if name not in resolved and name in metric_map:
+            # Derived rather than supplied, which is what `computed` is for.
+            resolved[name] = (metric_map[name], SourceType.COMPUTED)
+
+    snapshot_data = {
+        name: resolved[name][0] if name in resolved else None for name in SNAPSHOT_FIELDS
+    }
+    snapshot_data["eps"] = snapshot_data["eps_basic"]
 
     updated_at = _as_datetime(filing["updated_at"])
     latest_source = max(
@@ -216,7 +292,7 @@ def build_envelope(
     is_bank = filing["stock_code"].startswith("28")
     not_applicable = BANK_NOT_APPLICABLE if is_bank else BANK_ONLY
     missing_fields = sorted(
-        name for name in selected if name not in preferred and name not in not_applicable
+        name for name in selected if name not in resolved and name not in not_applicable
     )
     validation_failures = [
         ValidationFailure(
@@ -241,13 +317,15 @@ def build_envelope(
     failed_state = DataState.PROVIDER_FAILURE if latest_failed else DataState.MISSING
     availability = []
     for name in sorted(selected):
-        state = DataState.PRESENT if name in preferred else failed_state
+        state = DataState.PRESENT if name in resolved else failed_state
         reason = None
         if (is_bank and name in BANK_NOT_APPLICABLE) or (not is_bank and name in BANK_ONLY):
             state = DataState.NOT_APPLICABLE
             reason = "field is not applicable to this company sector"
         elif state is DataState.MISSING:
             reason = "expected field was not supplied by available sources"
+        elif resolved[name][1] is SourceType.COMPUTED:
+            reason = "derived from other canonical fields rather than supplied by a source"
         availability.append(
             FieldAvailability(
                 field=name,
@@ -288,7 +366,14 @@ def build_envelope(
         "pipeline_state": [PipelineRun(**item) for item in bundle["pipeline_state"]],
     }
     if chunks is not None:
-        return ContextEnvelope(**base, evidence_chunks=[_evidence_chunk(c) for c in chunks])
+        if retrieval is None:  # pragma: no cover - defensive
+            raise ValueError("a context envelope must report how retrieval ran")
+        return ContextEnvelope(
+            **base,
+            evidence_chunks=[_evidence_chunk(c) for c in chunks],
+            retrieval=retrieval,
+            corpus_version=corpus_version,
+        )
     return FilingEnvelope(**base)
 
 

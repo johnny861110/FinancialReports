@@ -110,6 +110,34 @@ def check_current_ratio_positive(facts: dict[str, float]) -> tuple[bool, str]:
     return False, f"Unexpected negative values: current_assets={ca}, current_liabilities={cl}"
 
 
+# Liabilities the source should never report below zero. current_liabilities is
+# already covered by check_current_ratio_positive; this catches the rest.
+_NON_NEGATIVE_LIABILITIES = ("accounts_payable", "total_liabilities")
+
+
+def check_liabilities_not_negative(facts: dict[str, float]) -> tuple[bool, str]:
+    """
+    A liability cannot be negative.
+
+    FinMind returns AccountsPayable below zero for some companies and not
+    others -- 22 of 62 rows across 8 companies in the present corpus -- and it
+    is the only balance-sheet field that is ever negative. The sign convention
+    is inconsistent at the source rather than uniformly flipped, so the value is
+    left exactly as the provider gave it: normalising it here would write a
+    guess into stored data and hide the disagreement. Flagging it instead lets a
+    consumer see the figure is suspect and leaves the convention to a human.
+    """
+    offenders = [
+        (field, facts[field])
+        for field in _NON_NEGATIVE_LIABILITIES
+        if facts.get(field) is not None and facts[field] < 0
+    ]
+    if not offenders:
+        return True, "Liabilities are non-negative — OK"
+    detail = ", ".join(f"{field}={value:,.0f}" for field, value in offenders)
+    return False, f"Liability reported as negative, source sign convention suspect: {detail}"
+
+
 def check_cash_flow_signs(facts: dict[str, float]) -> tuple[bool, str]:
     """
     Investing and financing cash flows are commonly negative; operating commonly positive for profitable companies.
@@ -151,6 +179,12 @@ ALL_RULES: list[tuple[ValidationRule, RuleCheck]] = [
             "current_ratio_positive", "Current assets/liabilities are positive", "error"
         ),
         check_current_ratio_positive,
+    ),
+    (
+        ValidationRule(
+            "liabilities_not_negative", "Liabilities are not reported negative", "error"
+        ),
+        check_liabilities_not_negative,
     ),
     (
         ValidationRule("cash_flow_signs", "Operating cash flow sign check", "info"),

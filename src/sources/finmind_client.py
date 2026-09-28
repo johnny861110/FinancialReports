@@ -1,5 +1,17 @@
 """
-FinMind API client — scrapes structured financial data for Taiwan listed companies.
+FinMind API client — the structured financial data source for this project.
+
+FinMind is the *primary* source of canonical facts, by deliberate choice, not a
+fallback for XBRL. Every fact in the corpus carries source_type "finmind" and no
+filing holds an XBRL or iXBRL source document; that is the expected shape of
+this system. Code elsewhere still speaks of an "XBRL fallback" for historical
+reasons and the XBRL parsers still exist, but nothing feeds them today.
+
+This matters because the absence looks exactly like a bug from the inside: the
+schema has xbrl_tag columns, the taxonomy lists XBRL tags per field, the
+pipeline has an XBRL branch that never fires, and the quality score docks marks
+for source coverage FinMind cannot supply. Before "fixing" any of that, note
+that the source decision is settled -- see docs/CHANGE-RECORD-2026-09-06.md.
 
 Free tier: no auth required, rate-limited.
 Datasets used:
@@ -32,7 +44,6 @@ _FINMIND_TO_CANONICAL: dict[str, str] = {
     "IncomeAfterTaxes": "net_income",
     "IncomeAfterTax": "net_income",  # bank variant
     "IncomeFromContinuingOperations": "net_income",  # bank variant
-    "EquityAttributableToOwnersOfParent": "net_income_attributable_to_parent",
     "EPS": "eps_basic",
     "BasicEPS": "eps_basic",
     "DilutedEPS": "eps_diluted",
@@ -56,6 +67,16 @@ _FINMIND_TO_CANONICAL: dict[str, str] = {
     "CurrentLiabilities": "current_liabilities",
     "Liabilities": "total_liabilities",
     "Equity": "equity",
+    # FinMind emits two spellings for the same balance-sheet concept. The short
+    # one used to be mapped to net_income_attributable_to_parent, which put an
+    # equity figure into an income-statement field: 3661_2025Q1 reported
+    # 41,588,114 against a net_income of 1,461,343 -- 28x the total, and equal
+    # to `equity` 41,607,063 less non-controlling interests. taxonomy.py is the
+    # authority and assigns this tag to equity_attributable_to_parent; the
+    # income field's tag is ProfitLossAttributableToOwnersOfParent, which
+    # FinMind does not supply. So net_income_attributable_to_parent is now
+    # simply unpopulated from FinMind, which is correct -- absent beats wrong.
+    "EquityAttributableToOwnersOfParent": "equity_attributable_to_parent",
     "EquityAttributableToOwnersOfParentCompany": "equity_attributable_to_parent",
     "RetainedEarnings": "retained_earnings",
     "CapitalStock": "share_capital",  # FinMind actual key
@@ -219,8 +240,15 @@ class FinMindClient:
 
             period_type = "instant" if canonical in _INSTANT_FIELDS else "duration"
             unit = "TWD_per_share" if canonical.startswith("eps") else "TWD_thousands"
-            # FinMind values are in full TWD (not thousands) — convert
-            if unit == "TWD_thousands" and abs(value) >= 1000:
+            # FinMind reports full TWD, so this converts to the canonical
+            # thousands. It used to be guarded by `abs(value) >= 1000`, which
+            # created a silent 1000x cliff: an amount under NT$1,000 was left
+            # undivided and then labelled thousands. The convention is uniform
+            # -- 2330_2024Q1 net_revenue arrives as 592,644,201,000 and
+            # 592,644,201 thousands is TSMC's published figure -- so there is
+            # nothing for the guard to protect and it only mis-scales the
+            # smallest values. EPS is excluded by unit, not by magnitude.
+            if unit == "TWD_thousands":
                 value = value / 1000.0
 
             facts.append(

@@ -87,7 +87,7 @@ uv run fr batch <batch_file.json> [options]
 | 選項 | 預設值 | 說明 |
 |------|--------|------|
 | `--concurrency` | `4` | 最大同時處理數 |
-| `--db` | `data/financial.db` | 資料庫路徑 |
+| `--db` | `$FR_DATABASE_URL` | PostgreSQL 連線 URL |
 
 **批次 JSON 格式：**
 
@@ -135,6 +135,16 @@ uv run fr ask "<question>" --stock <code> --year <year> --quarter <quarter>
 | XBRL | MOPS API | `data/raw/` |
 | iXBRL | MOPS API | `data/raw/` |
 
+> **結構化數據來自 FinMind API,不是 XBRL。** 這是刻意的架構選擇。
+> 語料庫中每一筆 fact 的 `source_type` 都是 `finmind`,沒有任何申報持有
+> XBRL 或 iXBRL 來源文件——PDF 用於文字檢索,FinMind 提供全部的
+> canonical facts。上表的 XBRL/iXBRL 列描述的是 ingest 會嘗試的來源,
+> 而非實際供應數據的來源。
+>
+> 這一點在程式碼內部看起來非常像 bug:schema 有 `xbrl_tag` 欄位、
+> taxonomy 為每個欄位列出 XBRL tags、pipeline 有一個從不觸發的 XBRL 分支。
+> 在「修正」這些之前,請先確認來源決策已經定案。
+
 **Period Code 對照：**
 - Q1 → `{year}01`（例如 `202401`）
 - Q2 → `{year}02`
@@ -156,7 +166,10 @@ uv run fr ask "<question>" --stock <code> --year <year> --quarter <quarter>
 
 ### 3.1 PostgreSQL 資料庫
 
-預設路徑：`data/financial.db`（WAL mode，支援並發讀寫）
+連線由 `FR_DATABASE_URL` 指定，預設
+`postgresql+psycopg://financial:financial@localhost:5432/financial`。
+容器由 compose 的 `db` 服務提供（`pgvector/pgvector:pg16`），
+連接埠見 `.env` 的 `POSTGRES_PORT`。
 
 詳細 Schema 見第 4 節。
 
@@ -456,8 +469,19 @@ CREATE TABLE IF NOT EXISTS document_sections (
 | `auditor` | 會計師查核報告 |
 | `accounting_policy` | 重大會計政策 |
 | `eps_note` | 每股盈餘附註 |
-| `risk` | 風險管理 |
+| `risk` | 風險管理（需為標題形式，非內文提及） |
+| `schedule` | 附表（背書保證、有價證券、關係人進銷貨等） |
+| `note` | 編號附註，`title` 帶實際主題（如 `應收帳款`、`無形資產`） |
 | `other` | 其他 / 未分類 |
+
+`note` 是主要的附註型別。台灣財報附註採嚴格編號（`十、應收帳款`、
+`（四）財務風險管理目的與政策`），parser 以此切分區段並把標題原文寫入 `title`，
+全語料共 885 個不同標題。上方九種型別只在高信心情況下指派：報表與附表有
+`民國` 日期或單位行佐證，其餘四個關鍵字型別（`notes`/`auditor`/
+`accounting_policy`/`eps_note`/`risk`）必須出現在行首且形似標題。
+
+編號附註出現時 `section_type` 會重設為 `note`，不沿用前一段的型別 —— 錯誤的
+標籤比粗略的標籤更糟，會誤導任何信任 `section_type` 的消費端。
 
 ---
 
@@ -490,6 +514,7 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 | eps_note | 0.85 |
 | equity_statement | 0.70 |
 | notes | 0.60 |
+| note | 0.60 |
 | risk | 0.60 |
 | auditor | 0.50 |
 | accounting_policy | 0.50 |
@@ -514,11 +539,21 @@ CREATE TABLE IF NOT EXISTS chunk_embeddings (
     created_at TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
+```
+
+**刻意不建 ANN 索引。** HNSW 以召回率換速度，而這裡沒有可換的東西:每次檢索都
+會篩到單一 `filing_key`（3661_2025Q1 為 123 個 chunk，最大的約 900 個），
+Postgres 以主鍵取出該筆申報的向量後精確排序約 3ms。對全部向量做近似掃描再
+後篩到一筆申報，既較慢也有損失 —— 即使 `enable_seqscan = off`，查詢規劃器仍
+拒絕使用該索引。在此規模下精確搜尋是品質較高的選擇,不只是可接受的選擇。
+
+若日後檢索跨申報（「搜尋所有公司的 X」），或單筆申報大到精確掃描不再便宜，
+再加回：
+
+```sql
 CREATE INDEX idx_chunk_embeddings_hnsw
     ON chunk_embeddings USING hnsw (embedding vector_cosine_ops);
 ```
-
-> 目前為佔位表，向量搜尋功能尚未整合。
 
 ---
 
@@ -709,6 +744,13 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
 ---
 
 ## 5. 管道四階段詳細說明
+
+> **重新萃取既有資料時,四階段必須跑完 `extract → validate → insights`。**
+> 以 `--force` 重跑 extract 會將申報狀態退回 `extracted`,低於 `build_envelope`
+> 要求的 `validated` / `insight_ready`,因此在後兩階段補完前所有申報都會回
+> 409。另外 extract 會刪除該文件既有的 chunks 與向量,所以之後需重跑
+> `fr embed`(有 GPU 時在 host 執行,見 README)。
+
 
 ### Stage 1: INGEST（下載）
 
@@ -989,6 +1031,23 @@ uv run uvicorn src.api.app:create_app --factory --host 127.0.0.1 --port 8010
 | 工作 | `POST /v1/filings/{stock_code}/{period}/refresh`, `GET /v1/jobs/{job_id}` |
 | 批次 | `POST /v1/batch/filings/query` |
 
+**`/context` 回應中兩個 consumer 必須處理的欄位：**
+
+| 欄位 | 型別 | 語意 |
+|------|------|------|
+| `retrieval` | `{mode, state, detail}` | `mode` 為 `semantic` \| `importance`；`state` 沿用 `DataState`。`present` = 問題確實參與語意排序；`not_applicable` = 未帶問題；`provider_failure` = embedding 模型不可用；`missing` = 該申報尚無向量。降級時仍會回傳格式完整的 chunks，因此**請判斷 `state`,不要以 `retrieval_score` 是否為 null 推論**。 |
+| `corpus_version` | `str \| null` | 該申報 chunk 語料的不透明 token（現為最新 chunk 的 ISO-8601 時間戳）。`chunk_id` 僅在單次萃取內穩定,重新萃取會重編號且新舊 id 區間重疊,過期 id 不會 404 而會**靜默指向不同文字**。快取引用時一併保存並在引用前比對。 |
+
+**狀態碼中兩種不同的 409：**
+
+| 狀態 | `error.code` | `retryable` | 意義 |
+|------|--------------|-------------|------|
+| 409 | `filing_not_ready` | `true` | 申報存在但尚未達 `validated`，跑完管道即可解決 |
+| 409 | `filing_has_no_source_documents` | **`false`** | 從未取得任何來源文件，**重試永遠不會成功**，應視為該申報的永久資料缺口 |
+| 503 | `provider_failure` | `true` | 生產端或其上游真的失敗 |
+
+請依 `error.code` 與 `retryable` 分支，不要只依狀態碼類別推論可重試性。
+
 回應 schema 版本為 `1.0.0`，包含 filing identity、readiness、pipeline
 status、freshness、quality、snapshot、canonical facts、field availability、
 validation、metrics、comparisons、events、evidence、insight cards、source
@@ -1126,6 +1185,17 @@ validation_score = max(0, passed_rules / total_rules - error_count × 0.1)
 evidence_coverage = (有 fact_evidence 記錄的 facts) / (總 facts 數)
 ```
 
+**分數上限低於 1.0,且是設計使然,不是缺陷:**
+
+| 分項 | 現況 | 損失 |
+|------|------|------|
+| `xbrl_coverage`(實為結構化來源覆蓋率) | FinMind 為唯一結構化來源,典型申報覆蓋 34 個 canonical 欄位中的 27 個 | 0.40 × 7/34 ≈ 0.082 |
+| `evidence_coverage` | 沒有任何程式寫入 `fact_evidence`,恆為 0 | 0.10 |
+
+因此一份其他方面完美的申報約為 **0.818**,而實際語料庫觀測到的最高分正是
+0.8176。請把這個分數當作申報之間的**相對**指標,而不是「距離某個可達成的
+理想值還差多少」。要改變任一分項,等於改變分數的定義,請刻意為之。
+
 ---
 
 ## 13. CLI 指令完整參考
@@ -1222,7 +1292,6 @@ FinancialReports/
 │   ├── batch_query.json
 │   └── semiconductor_batch.json
 ├── data/
-│   ├── financial.db                  # 舊 SQLite 資料庫（僅供搬遷）
 │   ├── raw/                          # XBRL/iXBRL 下載暫存
 │   └── financial_reports/            # PDF 本地快取
 │       └── {period_code}_{stock_code}_AI1.pdf
@@ -1247,28 +1316,28 @@ FinancialReports/
 | `beautifulsoup4` | ≥4.12.0 | HTML 解析（MOPS, iXBRL） |
 | `lxml` | ≥5.0.0 | XML/HTML 解析（XBRL, iXBRL） |
 | `pydantic` | ≥2.7.0 | 資料驗證（v2） |
+| `fastapi` | ≥0.115.0,<1.0.0 | HTTP API v1 |
+| `uvicorn` | ≥0.30.0,<1.0.0 | ASGI server |
 | `sqlalchemy` | ≥2.0.0 | 資料庫操作 |
-| `pandas` | ≥2.0.0 | 資料處理 |
+| `psycopg[binary]` | ≥3.2.0 | PostgreSQL driver |
 | `typer` | ≥0.12.0 | CLI 框架 |
 | `rich` | ≥13.0.0 | 終端機美化輸出 |
-| `python-dateutil` | ≥2.9.0 | 日期工具 |
 
 ### 選用 Extras
 
 ```bash
 # PDF 萃取
 uv sync --extra pdf
-# pdfplumber>=0.11.0, pypdfium2>=4.0.0
+# pdfplumber>=0.11.0（pypdfium2 由 pdfplumber 自帶）
 
-# OCR（掃描 PDF）
-uv sync --extra ocr
-# paddleocr>=2.7.0, paddlepaddle>=2.6.0, opencv-python>=4.9.0
-
-# 向量搜尋
+# 向量搜尋（chunk 向量，供 `fr embed` 使用；向量本身存在 pgvector）
 uv sync --extra vector
-# chromadb>=0.5.0, sentence-transformers>=3.0.0
+# sentence-transformers>=3.0.0, torch>=2.7.0（CPU-only wheel index）
 
 # LLM 查詢
 uv sync --extra llm
-# openai>=1.30.0, tiktoken>=0.7.0
+# openai>=1.30.0
+
+# 以上全部
+uv sync --extra all
 ```

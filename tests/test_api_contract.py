@@ -285,3 +285,162 @@ def test_refresh_and_job_contract(api_client) -> None:
     job = api_client.get(f"/v1/jobs/{job_id}")
     assert job.status_code == 200
     assert job.json()["status"] == "succeeded"
+
+
+def test_a_filing_with_no_source_documents_is_a_conflict_not_an_outage(api_client):
+    """503 told the consumer the whole producer was down.
+
+    A filing that never obtained a source document fails its pipeline by
+    design, but the provider-failure branch reported that as 503 retryable --
+    so a client backing off surfaced "FinancialReports is unavailable" for one
+    permanently empty filing, and a real outage became indistinguishable from
+    it. It is a conflict with the filing's own state and it will not resolve.
+    """
+    store = api_client.app.state.store
+    filing_id = store.get_filing_id("2330_2025Q1")
+    with store.conn() as conn:
+        for table in ("document_chunks", "document_sections", "document_pages"):
+            conn.execute(
+                text(
+                    f"DELETE FROM {table} WHERE doc_id IN"
+                    " (SELECT id FROM source_documents WHERE filing_id=:fid)"
+                ),
+                {"fid": filing_id},
+            )
+        conn.execute(
+            text(
+                "DELETE FROM fact_evidence WHERE doc_id IN"
+                " (SELECT id FROM source_documents WHERE filing_id=:fid)"
+            ),
+            {"fid": filing_id},
+        )
+        conn.execute(text("DELETE FROM source_documents WHERE filing_id=:fid"), {"fid": filing_id})
+
+    response = api_client.get("/v1/filings/2330/2025Q1/snapshot")
+
+    assert response.status_code == 409
+    error = response.json()["error"]
+    assert error["code"] == "filing_has_no_source_documents"
+    assert error["retryable"] is False
+
+
+def test_a_failed_refresh_job_does_not_echo_third_party_error_text(api_client):
+    """A job error is consumer-facing, so it must not carry internals.
+
+    This path used to do both things an error path must not: it logged nothing,
+    so the cause existed nowhere, and it put str(exc) straight into the job. A
+    driver error carries the connection URL, credentials included.
+    """
+
+    async def _boom(identity, store, output_dir):
+        raise OSError("could not connect to postgresql+psycopg://user:secret@db:5432/financial")
+
+    api_client.app.state.refresh_runner = _boom
+
+    created = api_client.post("/v1/filings/2330/2025Q1/refresh")
+    assert created.status_code == 202
+    job = api_client.get(f"/v1/jobs/{created.json()['job_id']}").json()
+
+    assert job["status"] == "failed"
+    assert "secret" not in job["error"]
+    assert "db:5432" not in job["error"]
+    assert "OSError" in job["error"], "the type is still useful for diagnosis"
+
+
+def test_a_deliberate_pipeline_error_stays_readable_in_the_job(api_client):
+    """Messages this project writes are meant to be read; don't redact those."""
+
+    async def _boom(identity, store, output_dir):
+        raise RuntimeError("no source document could be obtained for 2330_2025Q1")
+
+    api_client.app.state.refresh_runner = _boom
+
+    created = api_client.post("/v1/filings/2330/2025Q1/refresh")
+    job = api_client.get(f"/v1/jobs/{created.json()['job_id']}").json()
+
+    assert job["status"] == "failed"
+    assert "no source document could be obtained for 2330_2025Q1" in job["error"]
+
+
+def test_an_unhandled_error_keeps_the_documented_error_shape(database_url):
+    """A 500 used to return FastAPI's {"detail": ...}, which no consumer parses."""
+    app = create_app(database_url)
+
+    @app.get("/v1/_boom")
+    async def _boom() -> None:
+        raise KeyError("internal detail /app/secret/path")
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/v1/_boom")
+
+    assert response.status_code == 500
+    error = response.json()["error"]
+    assert error["code"] == "internal_error"
+    assert error["retryable"] is True
+    assert "secret" not in response.text
+
+
+class TestFieldAvailabilityMatchesWhatIsPublished:
+    """A response must not contradict itself about its own contents.
+
+    `snapshot` back-filled free_cash_flow from the metrics table while
+    `field_availability` and `quality.missing_fields` were derived from facts
+    alone, so every one of 69 filings published a correct free_cash_flow and
+    declared the same field `missing` in the same document. A consumer told its
+    users the figure was unavailable while holding it.
+
+    The invariant is two-directional: a published value implies `present`, and
+    `present` implies a published value.
+    """
+
+    @staticmethod
+    def _envelope(client):
+        response = client.get("/v1/filings/2330/2025Q1/snapshot")
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    def test_a_published_value_is_never_declared_missing(self, api_client):
+        body = self._envelope(api_client)
+        states = {a["field"]: a["state"] for a in body["field_availability"]}
+
+        contradictions = [
+            field
+            for field, value in body["snapshot"].items()
+            if value is not None and states.get(field) == "missing"
+        ]
+
+        assert not contradictions, f"published but declared missing: {contradictions}"
+
+    def test_a_present_field_always_carries_a_value(self, api_client):
+        body = self._envelope(api_client)
+        snapshot = body["snapshot"]
+        present = {a["field"] for a in body["field_availability"] if a["state"] == "present"}
+
+        empty = [f for f in present if f in snapshot and snapshot[f] is None]
+
+        assert not empty, f"declared present but published no value: {empty}"
+
+    def test_missing_fields_agrees_with_availability(self, api_client):
+        """quality.missing_fields was the second derivation with the same input."""
+        body = self._envelope(api_client)
+        states = {a["field"]: a["state"] for a in body["field_availability"]}
+
+        for field in body["quality"]["missing_fields"]:
+            assert states.get(field) != "present", (
+                f"{field} is listed as a missing field while availability says present"
+            )
+
+    def test_a_computed_canonical_field_is_present_and_says_it_is_derived(self, api_client):
+        """free_cash_flow is a metric, not a fact, and is still a canonical field."""
+        store = api_client.app.state.store
+        filing_id = store.get_filing_id("2330_2025Q1")
+        store.save_metric(
+            filing_id, "free_cash_flow", 348_213_466.0, formula="operating_cash_flow + capex"
+        )
+
+        body = self._envelope(api_client)
+        entry = next(a for a in body["field_availability"] if a["field"] == "free_cash_flow")
+
+        assert body["snapshot"]["free_cash_flow"] == 348_213_466.0
+        assert entry["state"] == "present"
+        assert "derived" in (entry["reason"] or "")

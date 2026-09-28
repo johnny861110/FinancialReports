@@ -1,8 +1,9 @@
 services:
   db:
-    # pgvector image rather than plain postgres: the vector extension lands in a
-    # follow-up PR and swapping the image later would force a volume rebuild.
+    # pgvector image rather than plain postgres: chunk_embeddings is a
+    # VECTOR(768) column with an HNSW index, so the extension is required.
     image: pgvector/pgvector:pg16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-financial}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-financial}
@@ -20,16 +21,29 @@ services:
 
   api:
     build: .
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
       FR_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-financial}:${POSTGRES_PASSWORD:-financial}@db:5432/${POSTGRES_DB:-financial}
       FR_OUTPUT_DIR: /app/data/raw
+      # The embedding model is supplied by the mounted cache below, so the
+      # service must never try to fetch it at request time. A stalled download
+      # once took the whole API down for nine hours; failing fast instead
+      # degrades one request to importance ordering, which the response's
+      # `retrieval` field reports honestly.
+      HF_HUB_OFFLINE: "1"
     ports:
       - "${API_PORT:-8010}:8010"
     volumes:
       - ./data:/app/data
+      # BAAI/bge-base-zh-v1.5 is ~400MB and lived only in the container's
+      # writable layer, so every `docker compose up` threw it away and the next
+      # question-bearing request re-downloaded it. Mounted read-write because
+      # huggingface_hub writes lock files beside the blobs; appuser is uid 1000
+      # to match the host user that owns the cache.
+      - ${HF_HOME:-~/.cache/huggingface}:/home/appuser/.cache/huggingface
 
 volumes:
   pgdata:

@@ -350,3 +350,321 @@ class TestUprightFlagRepair:
         chars, fixed = _deskew_upright_flags([{"text": "x", "upright": False}])
 
         assert fixed == 0
+
+
+class TestScheduleSectionDetection:
+    """Supplementary schedules (附表) must be their own section.
+
+    Without this they were absorbed by whatever section preceded them: one
+    filing carried a 92-page "accounting_policy" section that was mostly
+    endorsements, securities held and related-party transactions.
+    """
+
+    @staticmethod
+    def _detect(text):
+        from src.parsers.pdf_section_parser import _detect_section
+
+        return _detect_section(text)
+
+    def test_schedule_header_page_starts_a_schedule(self):
+        page = (
+            "鴻海精密工業股份有限公司及子公司\n"
+            "期末持有之重大有價證券\n"
+            "民國114年12月31日\n"
+            "附表三\n"
+            "單位：新台幣仟元\n"
+        )
+        assert self._detect(page) == ("schedule", "附表三", 0)
+
+    def test_cross_reference_is_not_a_schedule_boundary(self):
+        """Body text pointing at a schedule must not split the notes."""
+        page = (
+            "4.與關係人進、銷貨之金額達新臺幣一億元或實收資本額百分之二十以上：請詳附表四。\n"
+            "5.應收關係人款項達新臺幣一億元以上：請詳附表五。\n"
+        )
+        assert self._detect(page) is None
+
+    def test_continuation_page_inherits_rather_than_restarting(self):
+        """A schedule's later pages do not repeat the header block."""
+        page = "編號 公司名稱 關係 背書保證金額\n附表二\n(續)\n"
+        assert self._detect(page) is None
+
+    def test_marker_beyond_the_800_character_window_is_still_found(self):
+        """Schedule markers average character 982; the window would miss them."""
+        page = "填充" * 500 + "\n民國114年12月31日\n附表七\n單位：新台幣仟元\n"
+        assert len(page) > 800
+        assert self._detect(page) == ("schedule", "附表七", 0)
+
+    def test_statement_detection_is_unchanged(self):
+        page = "合併資產負債表\n民國114年12月31日\n"
+        assert self._detect(page) == ("balance_sheet", "合併資產負債表", 0)
+
+
+class TestChunkPageAttribution:
+    """A chunk must cite the page it came from, not its section's first page.
+
+    Sections concatenate their pages, and build_chunks copied the section's
+    page_start onto every chunk it produced. A 149-chunk section spanning pages
+    43-93 reported page 43 for all 149, so every citation into it pointed at
+    the wrong page while still looking well-formed.
+    """
+
+    @staticmethod
+    def _pages(texts, first=1):
+        from src.parsers.pdf_text_parser import PageText
+
+        return [
+            PageText(page_number=first + i, text=t, char_count=len(t), has_tables=False)
+            for i, t in enumerate(texts)
+        ]
+
+    def test_chunks_report_the_page_they_came_from(self):
+        from src.parsers.pdf_section_parser import build_chunks, split_sections
+
+        # One section (no headings), three pages of distinct filler.
+        pages = self._pages(["甲" * 600, "乙" * 600, "丙" * 600], first=41)
+        sections = split_sections(pages)
+        assert len(sections) == 1
+
+        chunks = build_chunks(sections, chunk_size=300, overlap=0)
+        for chunk in chunks:
+            marker = chunk["content"].strip()[0]
+            expected = {"甲": 41, "乙": 42, "丙": 43}[marker]
+            assert chunk["page_start"] == expected, f"{marker} attributed to {chunk['page_start']}"
+
+    def test_a_chunk_spanning_a_page_break_reports_both_pages(self):
+        from src.parsers.pdf_section_parser import build_chunks, split_sections
+
+        pages = self._pages(["甲" * 100, "乙" * 100], first=7)
+        sections = split_sections(pages)
+
+        chunks = build_chunks(sections, chunk_size=600, overlap=0)
+        assert len(chunks) == 1
+        assert (chunks[0]["page_start"], chunks[0]["page_end"]) == (7, 8)
+
+    def test_a_hand_built_section_falls_back_to_its_own_span(self):
+        """page_spans is optional, so callers that never set it still work."""
+        from src.parsers.pdf_section_parser import DocumentSection, build_chunks
+
+        section = DocumentSection(
+            section_type="notes",
+            title="附註",
+            page_start=12,
+            page_end=15,
+            content="內容" * 200,
+        )
+
+        chunks = build_chunks([section], chunk_size=300, overlap=0)
+        assert chunks
+        assert all((c["page_start"], c["page_end"]) == (12, 15) for c in chunks)
+
+
+class TestNoteHeadingSections:
+    """Numbered note headings are the boundary signal, and bare keywords are not.
+
+    `風險管理` used to be an unanchored substring, so it matched ordinary prose --
+    financial-holding filings discuss risk management on nearly every notes page
+    -- and fired 418 times across 67 filings, taking 26.9% of all chunks. The
+    patterns now have to look like a heading, and Taiwan's rigid note numbering
+    supplies the real boundaries.
+    """
+
+    @staticmethod
+    def _pages(texts, first=1):
+        from src.parsers.pdf_text_parser import PageText
+
+        return [
+            PageText(page_number=first + i, text=t, char_count=len(t), has_tables=False)
+            for i, t in enumerate(texts)
+        ]
+
+    def test_prose_mentioning_risk_management_does_not_start_a_section(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        prose = "本集團之避險政策係依書面之風險管理政策，以公允價值基礎管理並定期檢視。"
+        sections = split_sections(self._pages([prose]))
+
+        assert [s.section_type for s in sections] == ["other"]
+
+    def test_a_numbered_risk_heading_still_starts_a_risk_section(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(self._pages(["2.風險管理政策\n本集團之政策如下。"]))
+
+        assert sections[0].section_type == "risk"
+
+    def test_a_numbered_note_heading_becomes_its_own_titled_section(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(
+            self._pages(["十、 應收帳款\n明細如下。", "十一、 無形資產\n明細如下。"])
+        )
+
+        assert [(s.section_type, s.title) for s in sections] == [
+            ("note", "應收帳款"),
+            ("note", "無形資產"),
+        ]
+
+    def test_a_note_heading_resets_the_inherited_type_rather_than_keeping_it(self):
+        """A note about 無形資產 inside a risk stretch must not stay typed `risk`.
+
+        A wrong type is worse than a coarse one: anything trusting section_type
+        is actively misled, which is why `note` is the honest label here.
+        """
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(
+            self._pages(["2.風險管理政策\n內容。", "（十二）無形資產\n明細如下。"])
+        )
+
+        assert [s.section_type for s in sections] == ["risk", "note"]
+        assert sections[1].title == "無形資產"
+
+    def test_a_cross_reference_is_not_a_heading(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(
+            self._pages(["四、 重大會計政策之彙總說明請參閱本集團年度報告。"])
+        )
+
+        assert [s.section_type for s in sections] == ["other"]
+
+    def test_a_table_of_contents_row_is_not_a_heading(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(self._pages(["八、 合併財務報表附註 14 ~ 88"]))
+
+        assert [s.section_type for s in sections] == ["other"]
+
+    def test_a_table_row_of_figures_is_not_a_heading(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(self._pages(["1. 台達電子工業股份 1,734,029 100"]))
+
+        assert [s.section_type for s in sections] == ["other"]
+
+
+class TestSectionBoundaryIsTheHeadingNotThePage:
+    """A section must not start before its own heading.
+
+    Detection is page-granular, so a note heading part-way down a page started
+    the new section at the top of that page and handed it everything above --
+    which belongs to the note before it. On 2330_2026Q1 the heading
+    「十二、存 貨」 begins at character 711 of a 956-character page, so the
+    section titled 存 貨 opened with two chunks of 十一、應收帳款 and a citation
+    read 存貨 over text about receivables: confidently wrong provenance.
+    """
+
+    @staticmethod
+    def _pages(texts, first=1):
+        from src.parsers.pdf_text_parser import PageText
+
+        return [
+            PageText(page_number=first + i, text=t, char_count=len(t), has_tables=False)
+            for i, t in enumerate(texts)
+        ]
+
+    def test_text_above_a_mid_page_heading_stays_with_the_previous_section(self):
+        from src.parsers.pdf_section_parser import split_sections
+
+        page = "十一、 應收帳款\n" + "應收帳款明細如下。" * 8 + "\n十二、 存 貨\n存貨明細如下。"
+        sections = split_sections(self._pages([page]))
+
+        assert [s.title for s in sections] == ["應收帳款", "存 貨"]
+        receivables, inventory = sections
+        assert "應收帳款明細如下。" in receivables.content
+        assert "應收帳款明細如下。" not in inventory.content
+        assert inventory.content.lstrip().startswith("十二、 存 貨")
+
+    def test_both_fragments_keep_the_page_they_came_from(self):
+        """Splitting mid-page must not disturb page-level citations."""
+        from src.parsers.pdf_section_parser import build_chunks, split_sections
+
+        page = "十一、 應收帳款\n" + "甲" * 700 + "\n十二、 存 貨\n" + "乙" * 200
+        sections = split_sections(self._pages([page], first=19))
+
+        chunks = build_chunks(sections, chunk_size=400, overlap=0)
+        assert chunks
+        assert {c["page_start"] for c in chunks} == {19}
+        assert {c["page_end"] for c in chunks} == {19}
+
+    def test_no_chunk_carries_a_heading_for_a_different_note(self):
+        """The invariant, on a page whose notes do not span a boundary."""
+        from src.parsers.pdf_section_parser import build_chunks, split_sections
+
+        page = "十一、 應收帳款\n" + "甲" * 300 + "\n十二、 存 貨\n" + "乙" * 300
+        chunks = build_chunks(split_sections(self._pages([page])), chunk_size=900, overlap=0)
+
+        for chunk in chunks:
+            title = (chunk["section_title"] or "").replace(" ", "")
+            other = "存貨" if title == "應收帳款" else "應收帳款"
+            assert other not in chunk["content"].replace(" ", ""), (
+                f"chunk titled {title} carries the heading of {other}"
+            )
+
+    def test_a_heading_at_the_top_of_a_page_still_starts_there(self):
+        """The common case must not regress into an empty leading fragment."""
+        from src.parsers.pdf_section_parser import split_sections
+
+        sections = split_sections(
+            self._pages(["十、 應收帳款\n明細如下。", "十一、 無形資產\n明細如下。"])
+        )
+
+        assert [(s.title, s.page_start, s.page_end) for s in sections] == [
+            ("應收帳款", 1, 1),
+            ("無形資產", 2, 2),
+        ]
+
+
+class TestChunkerDoesNotEmitDuplicateTails:
+    """A section shorter than chunk_size produced a spurious trailing chunk.
+
+    _chunk_text advanced by `pos = end - overlap` unconditionally, so once the
+    text was consumed it stepped back and emitted one more chunk that was
+    wholly the tail of the one before it. A 123-character section yielded its
+    123 characters and then a 50-character duplicate.
+
+    Latent while sections were long; splitting notes into their own sections
+    made short sections the common case, and 44.8% of chunks came back under
+    100 characters -- near-duplicate fragments competing with their own parent
+    in retrieval.
+    """
+
+    @staticmethod
+    def _chunk(text, size=600, overlap=50):
+        from src.parsers.pdf_section_parser import _chunk_text
+
+        return _chunk_text(text, chunk_size=size, overlap=overlap)
+
+    def test_a_section_shorter_than_the_chunk_size_is_one_chunk(self):
+        assert len(self._chunk("內容" * 60)) == 1
+
+    def test_no_chunk_covers_a_range_already_covered(self):
+        """Asserted on offsets, not string containment.
+
+        Filing text is repetitive enough that a short chunk is often a
+        substring of a longer one without being redundant; what makes a chunk
+        redundant is covering no new characters.
+        """
+        for text in ("段落。" * 400, "甲" * 1201, "乙" * 650):
+            chunks = self._chunk(text)
+            for (_, _, earlier_end), (_, _, later_end) in zip(chunks, chunks[1:]):
+                assert later_end > earlier_end, (
+                    f"a chunk ends at {later_end}, no further than its predecessor"
+                )
+
+    def test_overlap_still_applies_between_real_chunks(self):
+        """The fix must not remove the overlap it was protecting."""
+        chunks = self._chunk("甲" * 1000, size=400, overlap=50)
+
+        assert len(chunks) > 1
+        starts = [start for _, start, _ in chunks]
+        ends = [end for _, _, end in chunks]
+        assert starts[1] == ends[0] - 50
+
+    def test_the_whole_text_is_still_covered(self):
+        text = "資料" * 500
+        chunks = self._chunk(text)
+
+        assert chunks[0][1] == 0
+        assert chunks[-1][2] == len(text)

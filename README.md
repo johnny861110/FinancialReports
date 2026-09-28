@@ -1,9 +1,10 @@
 # Financial Reports Insight Engine
 
-台灣上市櫃公司財報分析引擎，將 XBRL / iXBRL / PDF 原始文件轉換為結構化財務資料、計算財務指標、自動偵測異常事件，並產生 LLM Agent 可直接消費的洞察卡片。
+台灣上市櫃公司財報分析引擎，將 FinMind API 的結構化財務數字與 PDF 財報全文轉換為
+財務指標、異常事件偵測與 LLM Agent 可直接消費的洞察卡片。
 
 ```
-XBRL / iXBRL / PDF / FinMind API
+FinMind API（結構化數字） + PDF（全文檢索）
             │
             ▼  Stage 1: Ingest
      下載原始文件（TWSE / MOPS / FinMind）
@@ -71,11 +72,15 @@ uv sync --extra pdf
 
 | Extra | 安裝指令 | 啟用功能 | 套件 |
 |-------|----------|----------|------|
-| `pdf` | `uv sync --extra pdf` | PDF 文字與表格萃取 | pdfplumber, pypdfium2 |
-| `ocr` | `uv sync --extra ocr` | 掃描版 PDF 識別 | PaddleOCR, OpenCV |
-| `vector` | `uv sync --extra vector` | 產生 chunk 向量（`fr embed`） | sentence-transformers |
-| `llm` | `uv sync --extra llm` | 自然語言問答 | openai, tiktoken |
-| `all` | `uv sync --extra all` | 全部功能 | — |
+| `pdf` | `uv sync --extra pdf` | PDF 文字與表格萃取 | pdfplumber |
+| `vector` | `uv sync --extra vector` | 產生 chunk 向量（`fr embed`） | sentence-transformers, torch |
+| `llm` | `uv sync --extra llm` | 自然語言問答 | openai |
+| `all` | `uv sync --extra all` | 以上全部 | pdf + vector + llm |
+
+> **`fr embed` 有 GPU 就在 host 跑。** 容器刻意釘 CPU-only torch（compose 未設
+> GPU passthrough，這讓 image 少約 5GB，而 API 本身不做 embedding）。但 `fr embed`
+> 是離線批次工作，沒有理由在容器裡跑。實測 RTX 3060：容器 CPU 約 128 chunk/分，
+> host GPU 約 2,150 chunk/分，約 17 倍。指令可續跑，中途換機器不會重做。
 
 **環境變數（`.env`）：**
 
@@ -97,19 +102,13 @@ FINMIND_TOKEN=              # FinMind 付費 token（免費層不需要）
 ```bash
 cp .env.example .env          # 視需要調整帳密與連接埠
 docker compose up -d db       # 啟動 pgvector/pgvector:pg16
-export FR_DATABASE_URL="postgresql+psycopg://financial:financial@localhost:5432/financial"
+export FR_DATABASE_URL="postgresql+psycopg://financial:financial@localhost:${POSTGRES_PORT:-5432}/financial"
 ```
+
+連接埠要跟 `.env` 的 `POSTGRES_PORT` 一致；若 5432 已被本機其他 Postgres 佔用，
+在 `.env` 改成別的值（compose 與上面的 `FR_DATABASE_URL` 都會跟著走）。
 
 首次連線會自動依 `src/storage/schema.sql` 建立資料表。
-
-若有舊版 SQLite 資料庫，用一次性搬遷腳本轉入。腳本會保留主鍵（`document_chunks.id`
-是 API 對外暴露的 chunk 識別碼，重新編號會讓引用失效），並在結束時比對每張表的
-筆數與 `max(id)`：
-
-```bash
-uv run python scripts/migrate_sqlite_to_postgres.py \
-    --sqlite data/financial.db --url "$FR_DATABASE_URL"
-```
 
 ### 啟動 HTTP API v1
 
@@ -129,6 +128,33 @@ uv run uvicorn src.api.app:create_app --factory --host 127.0.0.1 --port 8010
 完整 contract、狀態碼、單位與 absence semantics 請見
 [API v1 文件](docs/API_V1.md)。跨 repository 只支援 HTTP contract，不共用
 資料庫連線。
+
+**消費端必讀的兩個欄位**(`/context` 回應):
+
+| 欄位 | 用途 |
+|------|------|
+| `retrieval` | `{mode, state, detail}`。`state` 沿用 `DataState`:`present` 表示問題確實參與了語意排序;`provider_failure` 表示 embedding 模型不可用;`missing` 表示該申報尚未 embed。**請判斷 `retrieval.state`,不要看 `retrieval_score` 是否為 null** —— 降級時仍會回傳格式完整、看起來像檢索結果的 chunks。 |
+| `corpus_version` | 該申報 chunk 語料的不透明版本 token。`chunk_id` 只在單次萃取內穩定,重新萃取會重編號且**新舊區間重疊**,所以過期的 id 不會 404,而是靜默指向別的文字。快取引用時請一併存下此值,引用前比對是否相同。 |
+
+另外有兩種 409:`filing_not_ready`(可重試)與
+`filing_has_no_source_documents`(**不可重試**,該申報從未取得任何來源文件)。
+請依 `error.code` 與 `retryable` 分支,不要只看狀態碼類別。
+
+> **跑測試前先設好 `FR_DATABASE_URL`。** 150 個測試中有 56 個需要真實的
+> PostgreSQL(儲存層、API contract、pipeline 串接)。未設定時測試會**直接失敗**
+> 而非跳過 —— 因為一個涵蓋率只有 94/150 卻回傳 exit 0 的綠燈,比紅燈更糟。
+> 若確實只想跑不需資料庫的子集,設 `FR_ALLOW_DB_SKIP=1`,並記得看 skip 數字。
+>
+> 注意連接埠:compose 使用 `.env` 的 `POSTGRES_PORT`,不一定是 5432。
+
+> **容器層的檢查用 `scripts/container_smoke.sh`。** 單元測試看不到 image 裡少
+> 了什麼:`pdf` extra 缺失時,萃取會產出 0 chunks 卻回報成功,而測試全綠 ——
+> 因為開發環境裡 pdfplumber 是裝著的。這個腳本對**執行中的容器**與**實際 API**
+> 斷言:用 `docker exec printenv` 讀取行程真正拿到的環境(compose 會從 `.env`
+> 代換,兩者可能不一致)、驗證 image 內 import 是否成立(含已移除的相依確實不
+> 在)、以及 API 表面行為。預期值一律從 API 取得而非寫死,重新萃取不會誤判。
+>
+> 24 項檢查。**信任綠燈之前先看它紅過:** `docker compose stop api` 後應有 14 項失敗、exit 1。
 
 ### 單筆執行
 
@@ -192,9 +218,9 @@ uv run fr ingest 2330 2024 Q1
 
 | 來源 | 取得內容 | 說明 |
 |------|----------|------|
-| MOPS | XBRL instance document | 結構化財務數字主要來源 |
-| MOPS | iXBRL HTML | XBRL 不可用時的備援 |
-| TWSE / 本地快取 | PDF 財務報告 | 文字萃取與附註 |
+| FinMind API | 三表結構化財務數字 | **實際唯一的結構化來源** |
+| TWSE / 本地快取 | PDF 財務報告 | 文字萃取、附註與 RAG 檢索 |
+| MOPS | XBRL / iXBRL | 程式路徑仍在，但實務上未取得任何文件（見下方說明） |
 
 - PDF 優先使用本地快取（`data/financial_reports/`），不存在才連線下載
 - 本地 PDF 命名規則：`{期間碼}_{股票代碼}_AI1.pdf`
@@ -209,19 +235,28 @@ uv run fr ingest 2330 2024 Q1
 uv run fr extract 2330 2024 Q1
 ```
 
-按優先級依序嘗試三種財務數字來源：
+> **實務上結構化數字全部來自 FinMind API,這是刻意的架構選擇。**
+> 語料庫中每一筆 fact 的 `source_type` 都是 `finmind`,67 份來源文件全是 PDF,
+> 從未取得過任何 XBRL 或 iXBRL 文件。下方的優先級順序描述的是**程式碼仍會嘗試
+> 的順序**,不是實際供應數據的來源。
+>
+> 這一點從程式碼內部看起來很像 bug(schema 有 `xbrl_tag` 欄位、taxonomy 為每個
+> 欄位列出 XBRL tags、pipeline 有一個從不觸發的 XBRL 分支)。**在「修正」之前請
+> 先確認:來源決策已經定案。** 詳見 `docs/CHANGE-RECORD-2026-09-06.md` §6b。
 
-**優先級 1：XBRL**（信心度 1.0）
+程式碼依序嘗試三種財務數字來源：
+
+**優先級 1：XBRL**（信心度 1.0）— *目前未取得任何文件*
 - 解析 XML instance document
 - 建立 context map（context_ref → 期間起訖日）
 - 對應 ~100 個 XBRL tag → canonical 欄位名稱
 
-**優先級 2：iXBRL**（信心度 0.95）
+**優先級 2：iXBRL**（信心度 0.95）— *目前未取得任何文件*
 - 從 HTML 中解析 `ix:nonFraction` 元素
 - 取出 tag 名稱與數值，邏輯同 XBRL
 
-**優先級 3：FinMind API**（信心度 0.95）
-- 當 XBRL / iXBRL 均無法取得時啟用
+**優先級 3：FinMind API**（信心度 0.95）— **實際供應 100% 的 facts**
+- 當 XBRL / iXBRL 均無法取得時啟用,亦即目前的每一次執行
 - 非同步並行查詢三個 dataset：
   - `TaiwanStockFinancialStatements`（損益表）
   - `TaiwanStockBalanceSheet`（資產負債表）
@@ -263,11 +298,18 @@ uv run fr validate 2330 2024 Q1
 **品質分數（0.0–1.0）：**
 
 ```
-quality_score = 0.40 × 資料來源覆蓋率（XBRL / iXBRL / FinMind 均計入）
+quality_score = 0.40 × 資料來源覆蓋率（結構化來源涵蓋的 canonical 欄位比例）
               + 0.30 × 關鍵欄位完整度
               + 0.20 × 驗證通過率
               + 0.10 × 佐證覆蓋率
 ```
+
+> **分數上限低於 1.0,且是設計使然。** 兩個分項結構性短少:資料來源覆蓋率因
+> FinMind 為唯一結構化來源,典型申報只涵蓋 34 個 canonical 欄位中的 27 個
+> （損失 0.40 × 7/34 ≈ 0.082）；佐證覆蓋率因沒有任何程式寫入 `fact_evidence`
+> 而恆為 0（損失 0.10）。因此一份其他方面完美的申報約為 **0.818**,實際語料庫
+> 觀測到的最高分正是 0.8176。**請當作申報之間的相對指標,而非「距離可達成的
+> 理想值還差多少」。** API 目前不隨分數附帶最大值,消費端請自行參照此處。
 
 **一般股關鍵欄位（9 項）：** net_revenue、gross_profit、operating_income、net_income、eps_basic、total_assets、total_liabilities、equity、operating_cash_flow
 
@@ -388,6 +430,18 @@ uv run fr run 2330 2024 Q1 --db /data/prod.db --output-dir /data/raw
 
 # 批次處理半導體族群
 uv run fr batch examples/semiconductor_batch.json --concurrency 6
+```
+
+> **整批重新萃取務必跑完 `extract → validate → insights`,不能只跑 extract。**
+> `--force` 重跑 extract 會把申報狀態退回 `extracted`,低於 API 要求的門檻,
+> 因此在 validate 與 insights 補完之前,**每一筆申報的 `/snapshot` 與 `/context`
+> 都會回 409**。整個語料庫重跑一次約 15 秒即可補完,但漏掉就是一次對外中斷。
+>
+> 另外,改動 parser 後既有資料不會自動更新——`document_sections` 與
+> `document_chunks` 只有在重新萃取時才會依新規則重建,重建後還需要重跑
+> `fr embed`(chunk 重建會連帶刪除既有向量)。
+
+```bash
 
 # 查詢問答
 uv run fr ask "本季 EPS 為何大幅成長？" --stock 2330 --year 2024 --quarter Q1
@@ -401,14 +455,15 @@ uv run fr ask "現金流有無異常？" --stock 2454 --year 2024 --quarter Q2
 ### 來源優先順序（Stage 2 財務數字萃取）
 
 ```
-XBRL（優先）→ iXBRL（次要）→ FinMind API（回退）
+程式碼順序：XBRL（優先）→ iXBRL（次要）→ FinMind API（回退）
+實際結果：  FinMind API 供應 100% 的 facts
 ```
 
-| 來源 | 取得內容 | 信心度 | 備註 |
-|------|----------|--------|------|
-| XBRL | 結構化財務數字（100+ tags） | 1.0 | MOPS 自動化存取受限，可能無法下載 |
-| iXBRL | HTML 嵌入式財務數字 | 0.95 | 同上 |
-| FinMind API | 三表結構化數字 | 0.95 | 免費層無需 token，目前主要使用來源 |
+| 來源 | 取得內容 | 信心度 | 實際狀況 |
+|------|----------|--------|----------|
+| XBRL | 結構化財務數字（100+ tags） | 1.0 | **語料庫中 0 筆**；未曾取得任何文件 |
+| iXBRL | HTML 嵌入式財務數字 | 0.95 | **語料庫中 0 筆**；同上 |
+| FinMind API | 三表結構化數字 | 0.95 | **全部 1,751 筆 facts 皆來自此處**，刻意如此 |
 | PDF 表格解析 | 財務報表頁面數字 | 0.75 | 僅在以上三者均無法使用時啟用 |
 
 ### FinMind API 說明
@@ -518,9 +573,9 @@ revenue_growth      | 營收成長分析      | YoY 成長 16.5%，超越市場�
 | `source_documents` | 下載文件記錄（路徑、大小、checksum） |
 | `fact_evidence` | 財務數字的原始文件佐證 |
 | `document_pages` | PDF 全頁文字內容 |
-| `document_sections` | PDF 章節切分（損益表、資產負債表等） |
+| `document_sections` | PDF 章節切分；報表型別加編號附註，`title` 存標題原文 |
 | `document_chunks` | RAG 文字片段（~600 字/片段） |
-| `chunk_embeddings` | chunk 向量 `VECTOR(768)` + HNSW cosine 索引，由 `fr embed` 產生 |
+| `chunk_embeddings` | chunk 向量 `VECTOR(768)`，由 `fr embed` 產生；刻意不建 ANN 索引 |
 | `validation_results` | 七條驗證規則執行結果 |
 | `text_summaries` | 文字摘要 |
 | `insight_evidence` | 洞察卡片的佐證連結 |
@@ -723,7 +778,6 @@ FinancialReports/
 │   ├── batch_query.json              # 查詢批次設定
 │   └── semiconductor_batch.json      # 半導體族群批次設定
 ├── data/
-│   ├── financial.db                  # 舊 SQLite 資料庫（僅供一次性搬遷）
 │   ├── raw/                          # 下載的 XBRL / iXBRL 暫存
 │   └── financial_reports/            # PDF 本地快取
 ├── docs/API_V1.md                    # HTTP API contract 與操作說明

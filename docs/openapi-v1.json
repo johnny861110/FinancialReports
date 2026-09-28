@@ -1025,6 +1025,20 @@
             },
             "type": "array",
             "title": "Evidence Chunks"
+          },
+          "retrieval": {
+            "$ref": "#/components/schemas/RetrievalInfo"
+          },
+          "corpus_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corpus Version"
           }
         },
         "additionalProperties": false,
@@ -1046,7 +1060,8 @@
           "comparisons",
           "insight_cards",
           "source_documents",
-          "pipeline_state"
+          "pipeline_state",
+          "retrieval"
         ],
         "title": "ContextEnvelope"
       },
@@ -1537,7 +1552,8 @@
                 "type": "null"
               }
             ],
-            "title": "Reason"
+            "title": "Reason",
+            "description": "Human-readable explanation, present whenever the state needs one: not supplied by a source, not applicable to this sector, or derived from other canonical fields. Consumers surface this text to end users verbatim, so treat it as published copy rather than an internal note -- rewording it changes what people read."
           }
         },
         "additionalProperties": false,
@@ -1548,7 +1564,8 @@
           "unit",
           "state"
         ],
-        "title": "FieldAvailability"
+        "title": "FieldAvailability",
+        "description": "Whether this envelope carries a value for one canonical field.\n\n`state` and the published value are kept consistent by construction: a\nfield the response publishes is never `missing`, and a field it declares\n`present` always carries a value. They used to be derived separately, and a\nresponse could publish free_cash_flow and call it missing in the same\ndocument."
       },
       "FieldDefinition": {
         "properties": {
@@ -2362,6 +2379,44 @@
           "identity"
         ],
         "title": "RefreshResponse"
+      },
+      "RetrievalInfo": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/RetrievalMode"
+          },
+          "state": {
+            "$ref": "#/components/schemas/DataState"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode",
+          "state"
+        ],
+        "title": "RetrievalInfo",
+        "description": "Whether evidence selection did what the caller asked for.\n\nA question can go unused for reasons the caller cannot otherwise detect --\nthe embedding model missing from the deployment, or the filing never having\nbeen through `fr embed`. Both previously produced a well-formed evidence\nlist, ordered by importance, that was indistinguishable from a semantic\nsearch result apart from a null `retrieval_score` the caller would have had\nto notice. `state` reports it explicitly, using the same DataState\nvocabulary the snapshot path already applies per field."
+      },
+      "RetrievalMode": {
+        "type": "string",
+        "enum": [
+          "semantic",
+          "importance"
+        ],
+        "title": "RetrievalMode",
+        "description": "How `evidence_chunks` were ordered."
       },
       "SnapshotValues": {
         "properties": {

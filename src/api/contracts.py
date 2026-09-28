@@ -1,7 +1,7 @@
 """Transport contracts for FinancialReports API v1.
 
 These models are intentionally separate from persistence and pipeline models so
-the external contract can evolve without coupling consumers to SQLite details.
+the external contract can evolve without coupling consumers to database details.
 """
 
 from __future__ import annotations
@@ -149,11 +149,29 @@ class Fact(ContractModel):
 
 
 class FieldAvailability(ContractModel):
+    """Whether this envelope carries a value for one canonical field.
+
+    `state` and the published value are kept consistent by construction: a
+    field the response publishes is never `missing`, and a field it declares
+    `present` always carries a value. They used to be derived separately, and a
+    response could publish free_cash_flow and call it missing in the same
+    document.
+    """
+
     field: str
     statement: str
     unit: str
     state: DataState
-    reason: str | None = None
+    reason: str | None = Field(
+        default=None,
+        description=(
+            "Human-readable explanation, present whenever the state needs one: "
+            "not supplied by a source, not applicable to this sector, or "
+            "derived from other canonical fields. Consumers surface this text "
+            "to end users verbatim, so treat it as published copy rather than "
+            "an internal note -- rewording it changes what people read."
+        ),
+    )
 
 
 class Metric(ContractModel):
@@ -270,8 +288,57 @@ class EvidenceChunk(ContractModel):
     retrieval_score: float | None = None
 
 
+class RetrievalMode(str, Enum):
+    """How `evidence_chunks` were ordered."""
+
+    SEMANTIC = "semantic"
+    """Ranked by cosine distance between the question and chunk embeddings."""
+
+    IMPORTANCE = "importance"
+    """Ranked by the chunker's importance_score; the question did not affect it."""
+
+
+class RetrievalInfo(ContractModel):
+    """Whether evidence selection did what the caller asked for.
+
+    A question can go unused for reasons the caller cannot otherwise detect --
+    the embedding model missing from the deployment, or the filing never having
+    been through `fr embed`. Both previously produced a well-formed evidence
+    list, ordered by importance, that was indistinguishable from a semantic
+    search result apart from a null `retrieval_score` the caller would have had
+    to notice. `state` reports it explicitly, using the same DataState
+    vocabulary the snapshot path already applies per field.
+    """
+
+    mode: RetrievalMode
+    state: DataState
+    """PRESENT when the question ranked the results. NOT_APPLICABLE when no
+    question was asked. PROVIDER_FAILURE when a question was asked but the
+    embedding model was unavailable. MISSING when the filing has no
+    embeddings."""
+
+    detail: str | None = None
+    """Human-readable reason, present whenever `state` is not PRESENT."""
+
+
 class ContextEnvelope(FilingEnvelope):
     evidence_chunks: list[EvidenceChunk] = Field(default_factory=list)
+    retrieval: RetrievalInfo
+
+    corpus_version: str | None = None
+    """Opaque token identifying this filing's current chunk corpus.
+
+    `chunk_id` is only stable within one extraction. Re-extracting a filing
+    deletes and re-inserts its chunks, and because identity values keep
+    climbing while the old range stays occupied, a cached id does not reliably
+    stop resolving -- it can silently return different text from a different
+    filing. Nothing else in the envelope changes when that happens.
+
+    Compare this by equality against the value stored alongside any cached
+    chunk_id: if it differs, the ids are stale and must be re-fetched rather
+    than cited. Currently the ISO-8601 timestamp of the filing's newest chunk;
+    treat it as opaque. Null when the filing has no chunks.
+    """
 
 
 class StockSummary(ContractModel):

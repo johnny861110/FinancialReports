@@ -31,22 +31,42 @@ from src.storage.store import resolve_database_url
 def postgres_url() -> Iterator[str]:
     """Create a throwaway database for the session and drop it afterwards."""
     admin_url = resolve_database_url(os.getenv("FR_TEST_DATABASE_URL"))
-    engine = create_engine(admin_url, pool_pre_ping=True, isolation_level="AUTOCOMMIT")
+    # Short connect timeout: when the database is absent this fixture is the
+    # only thing standing between a misconfigured run and a false green, so it
+    # should reach that verdict in seconds rather than minutes.
+    engine = create_engine(
+        admin_url,
+        pool_pre_ping=True,
+        isolation_level="AUTOCOMMIT",
+        connect_args={"connect_timeout": 3},
+    )
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
     except Exception as exc:  # pragma: no cover - environment dependent
-        message = (
-            f"PostgreSQL is not reachable at {admin_url!r} ({exc}). "
-            "Start it with `docker compose up -d db`."
-        )
-        # Skipping is a local convenience. In CI an unreachable database must
-        # fail loudly: silently skipping every database test would let the
-        # pipeline report green while covering nothing.
-        if os.getenv("CI"):
-            raise RuntimeError(message) from exc
         engine.dispose()
-        pytest.skip(message)
+        message = (
+            f"PostgreSQL is not reachable at {admin_url!r} ({exc}).\n"
+            "\n"
+            "56 of this suite's tests need it -- every storage, API-contract and\n"
+            "pipeline-chain test -- so without it the run covers 94 of 150 and\n"
+            "still exits 0. Refusing rather than skipping, because a green result\n"
+            "over work that did not happen is worse than a red one.\n"
+            "\n"
+            "  start it:      docker compose up -d db\n"
+            "  point at it:   export FR_DATABASE_URL=postgresql+psycopg://"
+            "financial:financial@localhost:${POSTGRES_PORT:-5432}/financial\n"
+            "\n"
+            "The port matters: compose publishes POSTGRES_PORT from .env, which is\n"
+            "not always 5432. If the URL above names a port you did not choose,\n"
+            "that is the bug.\n"
+            "\n"
+            "To run only the tests that need no database, set FR_ALLOW_DB_SKIP=1 --\n"
+            "deliberately, and read the skip count."
+        )
+        if os.getenv("FR_ALLOW_DB_SKIP"):
+            pytest.skip(message)
+        raise RuntimeError(message) from exc
 
     name = f"fr_test_{uuid.uuid4().hex[:12]}"
     with engine.connect() as conn:
