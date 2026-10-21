@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -154,6 +155,31 @@ def retrieval_info(
             "this filing has no chunk embeddings, so the question did not affect "
             "ranking; chunks are ordered by importance. Run `fr embed` for it"
         ),
+    )
+
+
+def build_identity(
+    stock_code: str, period: str, company: Mapping[str, Any] | None = None
+) -> Identity:
+    """The identity block every v1 response carries for a filing.
+
+    `company` is a row holding name_zh, name_en, industry and market -- the filing
+    bundle or a companies row -- or None when the company is not stored. The
+    contract requires `company_name`, so it falls back to the stock code when no
+    name exists; the optional name fields stay None rather than repeating it.
+    """
+    company = company or {}
+    name_zh = company.get("name_zh")
+    name_en = company.get("name_en")
+    return Identity(
+        stock_code=stock_code,
+        period=period,
+        filing_key=f"{stock_code}_{period}",
+        company_name=name_zh or name_en or stock_code,
+        company_name_zh=name_zh,
+        company_name_en=name_en,
+        industry=company.get("industry"),
+        market=company.get("market"),
     )
 
 
@@ -342,16 +368,7 @@ def build_envelope(
             )
         )
 
-    identity = Identity(
-        stock_code=filing["stock_code"],
-        period=f"{filing['year']}{filing['quarter']}",
-        filing_key=filing["filing_key"],
-        company_name=filing["name_zh"] or filing["name_en"] or filing["stock_code"],
-        company_name_zh=filing["name_zh"],
-        company_name_en=filing["name_en"],
-        industry=filing["industry"],
-        market=filing["market"],
-    )
+    identity = build_identity(filing["stock_code"], f"{filing['year']}{filing['quarter']}", filing)
     base: dict[str, Any] = {
         "identity": identity,
         "status": readiness,
