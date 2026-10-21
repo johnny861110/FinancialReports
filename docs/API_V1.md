@@ -35,6 +35,14 @@ uv run python -m src.api.export_openapi
 and includes enough data to construct a FinancialSnapshot. Missing filings
 return 404. Refresh returns 202 with a job id.
 
+`stale` means the copy held may be a first version, not that it is old: the
+quarter's statutory deadline (Q1 5/15, Q2 8/14, Q3 11/14, Q4 3/31 of the next
+year; general-industry dates, financial-sector differences are not modelled) plus
+a grace period (default 14 days, `FR_STALE_GRACE_DAYS`) has passed and
+`freshness.updated_at` is earlier than that point. A copy taken after it, or any
+quarter still before it, is `current`. `freshness.stale_after_seconds` now carries
+the grace period in seconds. See `src/api/freshness.py`.
+
 Two distinct 409s and one 503, and the difference matters to a retry policy:
 
 | Status | `error.code` | `retryable` | Meaning |
