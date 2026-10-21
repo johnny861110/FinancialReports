@@ -468,6 +468,29 @@ def _print_result(stage: str, result: dict) -> None:
             console.print(f"  {k}: {v}")
 
 
+@app.command("backfill-companies")
+def backfill_companies_cmd(
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
+    dry_run: bool = typer.Option(False, help="Show what would change without writing"),
+) -> None:
+    """Fill company name / industry / market from the exchange directories.
+
+    Replaces stock codes stored as names. Re-running changes nothing further.
+    """
+    from src.normalize.company_mapper import backfill_companies
+    from src.sources.registry import get_mops_client
+
+    store = _make_store(db)
+    changes = backfill_companies(store, get_mops_client(), dry_run=dry_run)
+
+    table = Table("stock", "name_zh", "industry", "market")
+    for stock_code, _before, after in changes:
+        table.add_row(stock_code, *(str(v) for v in after))
+    console.print(table)
+    verb = "Would update" if dry_run else "Updated"
+    console.print(f"[green]{verb} {len(changes)} companies.[/green]")
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     app()

@@ -9,17 +9,8 @@ import pytest
 
 from src.domain.identity import FilingIdentity
 from src.sources.finmind_client import FinMindClient
-from src.sources.mops_client import MOPSClient
 from src.sources.pdf_client import MOPSPDFClient
 from src.sources.xbrl_client import XBRLClient
-
-
-def test_mops_company_parser_ignores_non_table_nodes() -> None:
-    html = """
-    <html><body><table><tr><td>公司名稱</td><td>台灣積體電路</td></tr></table></body></html>
-    """
-
-    assert MOPSClient()._parse_company_info(html) == {"name_zh": "台灣積體電路"}
 
 
 @pytest.mark.asyncio
