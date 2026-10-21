@@ -32,6 +32,7 @@ from src.api.contracts import (
     ValidationFailure,
     ValidationResult,
 )
+from src.api.freshness import grace_period, is_stale
 from src.domain.taxonomy import ALL_CANONICAL, FIELD_TO_STATEMENT
 
 STRUCTURED_SOURCES = {"xbrl", "ixbrl", "finmind"}
@@ -273,13 +274,18 @@ def build_envelope(
         ),
         default=None,
     )
-    age = (datetime.now(timezone.utc) - _aware(updated_at)).total_seconds()
-    freshness_state: Literal["stale", "current"] = "stale" if age > 86400 else "current"
+    # Stale means the copy we hold predates the point the report should be final,
+    # not that it is old. See src/api/freshness.py.
+    stale = is_stale(
+        int(filing["year"]), filing["quarter"], _aware(updated_at), datetime.now(timezone.utc)
+    )
+    freshness_state: Literal["stale", "current"] = "stale" if stale else "current"
     freshness = Freshness(
         state=freshness_state,
         updated_at=updated_at,
-        is_stale=freshness_state == "stale",
+        is_stale=stale,
         latest_source_at=latest_source,
+        stale_after_seconds=int(grace_period().total_seconds()),
     )
     readiness = ReadinessStatus.STALE if freshness_state == "stale" else ReadinessStatus.READY
 
