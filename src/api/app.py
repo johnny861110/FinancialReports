@@ -29,7 +29,6 @@ from src.api.contracts import (
     FieldDefinition,
     FilingEnvelope,
     HealthResponse,
-    Identity,
     JobResponse,
     Pagination,
     PeriodsResponse,
@@ -44,6 +43,7 @@ from src.api.repository import APIRepository
 from src.api.service import (
     APIProblem,
     build_envelope,
+    build_identity,
     ensure_fields,
     parse_period,
     retrieval_info,
@@ -299,15 +299,14 @@ def create_app(
         tags=["jobs"],
     )
     async def refresh(
-        stock_code: str, period: str, background_tasks: BackgroundTasks, request: Request
+        stock_code: str,
+        period: str,
+        background_tasks: BackgroundTasks,
+        request: Request,
+        repo: Repo,
     ) -> RefreshResponse:
         year, quarter = _validate_identity(stock_code, period)
-        identity = Identity(
-            stock_code=stock_code,
-            period=period,
-            filing_key=f"{stock_code}_{period}",
-            company_name=stock_code,
-        )
+        identity = build_identity(stock_code, period, repo.get_company(stock_code))
         job = request.app.state.jobs.create(identity)
         background_tasks.add_task(
             _execute_refresh,
@@ -327,13 +326,12 @@ def create_app(
     @app.post("/v1/batch/filings/query", response_model=BatchQueryResponse, tags=["batch"])
     async def batch_query(payload: BatchQueryRequest, repo: Repo) -> BatchQueryResponse:
         results: list[BatchResult] = []
+        companies = {
+            code: repo.get_company(code)
+            for code in dict.fromkeys(i.stock_code for i in payload.items)
+        }
         for item in payload.items:
-            identity = Identity(
-                stock_code=item.stock_code,
-                period=item.period,
-                filing_key=f"{item.stock_code}_{item.period}",
-                company_name=item.stock_code,
-            )
+            identity = build_identity(item.stock_code, item.period, companies.get(item.stock_code))
             try:
                 selected = _validate_query(item.stock_code, item.period, item.fields)
                 data = _get_envelope(repo, item.stock_code, item.period, selected)

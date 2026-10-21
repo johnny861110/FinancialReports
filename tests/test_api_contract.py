@@ -287,6 +287,70 @@ def test_refresh_and_job_contract(api_client) -> None:
     assert job.json()["status"] == "succeeded"
 
 
+def _stub_refresh(api_client) -> None:
+    async def successful_refresh(identity, store, output_dir):
+        return {"validate": {"status": "completed"}}
+
+    api_client.app.state.refresh_runner = successful_refresh
+
+
+def test_refresh_identity_carries_the_stored_company_metadata(api_client) -> None:
+    _stub_refresh(api_client)
+    snapshot_identity = api_client.get("/v1/filings/2330/2025Q1/snapshot").json()["identity"]
+
+    response = api_client.post("/v1/filings/2330/2025Q1/refresh")
+
+    identity = response.json()["identity"]
+    assert identity["company_name_zh"] == "台積電"
+    assert identity["company_name_en"] == "TSMC"
+    assert identity["industry"] == "半導體"
+    assert identity["market"] == "上市"
+    assert identity == snapshot_identity
+
+
+def test_refresh_identity_for_an_unknown_company_does_not_pass_the_code_off_as_a_name(
+    api_client,
+) -> None:
+    _stub_refresh(api_client)
+
+    identity = api_client.post("/v1/filings/7418/2026Q1/refresh").json()["identity"]
+
+    assert identity["stock_code"] == "7418"
+    assert identity["company_name_zh"] is None
+    assert identity["company_name_en"] is None
+    assert identity["industry"] is None
+    assert identity["market"] is None
+
+
+def test_job_identity_matches_the_refresh_response(api_client) -> None:
+    _stub_refresh(api_client)
+    for code in ("2330", "7418"):
+        created = api_client.post(f"/v1/filings/{code}/2025Q1/refresh").json()
+
+        job = api_client.get(f"/v1/jobs/{created['job_id']}").json()
+
+        assert job["identity"] == created["identity"]
+
+
+def test_batch_identity_uses_stored_company_metadata(api_client) -> None:
+    response = api_client.post(
+        "/v1/batch/filings/query",
+        json={
+            "items": [
+                {"stock_code": "2330", "period": "2025Q1"},
+                {"stock_code": "7418", "period": "2026Q1"},
+            ]
+        },
+    )
+
+    known, unknown = (item["identity"] for item in response.json()["items"])
+    assert known["company_name_zh"] == "台積電"
+    assert known["industry"] == "半導體"
+    assert known["market"] == "上市"
+    assert unknown["company_name_zh"] is None
+    assert unknown["industry"] is None
+
+
 def test_a_filing_with_no_source_documents_is_a_conflict_not_an_outage(api_client):
     """503 told the consumer the whole producer was down.
 

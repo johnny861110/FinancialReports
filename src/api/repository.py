@@ -82,6 +82,17 @@ class APIRepository:
             ).fetchall()
         return _dicts(rows), total
 
+    def get_company(self, stock_code: str) -> dict[str, Any] | None:
+        with self.store.conn() as conn:
+            row = conn.execute(
+                text(
+                    "SELECT stock_code, name_zh, name_en, industry, market"
+                    " FROM companies WHERE stock_code=:stock_code"
+                ),
+                {"stock_code": stock_code},
+            ).fetchone()
+        return dict(row._mapping) if row else None
+
     def get_filing(self, stock_code: str, period: str) -> dict[str, Any] | None:
         filing_key = f"{stock_code}_{period}"
         with self.store.conn() as conn:
