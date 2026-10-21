@@ -388,6 +388,10 @@ uv run fr insights <stock_code> <year> <quarter>
 
 # 批次
 uv run fr batch <batch.json> [選項]
+
+# 維護
+uv run fr embed [--stock <stock_code>]          # 補上缺少的 chunk 向量；已有的會跳過
+uv run fr backfill-companies [--dry-run]         # 從 TWSE／TPEx 開放資料補公司名稱、產業、上市別
 ```
 
 **通用選項：**
