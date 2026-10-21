@@ -9,7 +9,7 @@ import logging
 from datetime import date
 
 import requests  # type: ignore[import-untyped]
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 from src.domain.identity import FilingIdentity
 
@@ -24,15 +24,76 @@ _HEADERS = {
     "Referer": "https://mops.twse.com.tw/",
 }
 
-# Known company names (fallback cache to reduce unnecessary requests)
-_COMPANY_CACHE: dict[str, dict] = {}
+# Open-data company directories published by the exchanges. MOPS's own
+# company-info page (ajax_t05st03) now refuses scripted access, so the
+# listing-wide OpenAPI datasets are the source. Each is one full list.
+_DIRECTORIES = (
+    # (url, market, code field, name field, industry field)
+    (
+        "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+        "上市",
+        "公司代號",
+        "公司簡稱",
+        "產業別",
+    ),
+    (
+        "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O",
+        "上櫃",
+        "SecuritiesCompanyCode",
+        "CompanyAbbreviation",
+        "SecuritiesIndustryCode",
+    ),
+)
+
+# Industry codes shared by both exchanges. A code missing here is kept as-is.
+INDUSTRY_NAMES = {
+    "01": "水泥工業",
+    "02": "食品工業",
+    "03": "塑膠工業",
+    "04": "紡織纖維",
+    "05": "電機機械",
+    "06": "電器電纜",
+    "08": "玻璃陶瓷",
+    "09": "造紙工業",
+    "10": "鋼鐵工業",
+    "11": "橡膠工業",
+    "12": "汽車工業",
+    "14": "建材營造業",
+    "15": "航運業",
+    "16": "觀光餐旅",
+    "17": "金融保險業",
+    "18": "貿易百貨業",
+    "20": "其他",
+    "21": "化學工業",
+    "22": "生技醫療業",
+    "23": "油電燃氣業",
+    "24": "半導體業",
+    "25": "電腦及週邊設備業",
+    "26": "光電業",
+    "27": "通信網路業",
+    "28": "電子零組件業",
+    "29": "電子通路業",
+    "30": "資訊服務業",
+    "31": "其他電子業",
+    "32": "文化創意業",
+    "33": "農業科技業",
+    "34": "電子商務",
+    "35": "綠能環保",
+    "36": "數位雲端",
+    "37": "運動休閒",
+    "38": "居家生活",
+    "91": "存託憑證",
+}
+
+# stock_code -> {name_zh, industry, market}. Only a complete download is kept,
+# so a failed fetch is retried on the next lookup instead of being remembered.
+_DIRECTORY_CACHE: dict[str, dict] | None = None
 
 
 class MOPSClient:
     """Fetch company metadata and filing info from MOPS."""
 
     MOPS_BASE = "https://mops.twse.com.tw"
-    COMPANY_INFO_URL = f"{MOPS_BASE}/mops/web/ajax_t05st03"
 
     def __init__(self, timeout: int = 15) -> None:
         self.timeout = timeout
@@ -42,65 +103,56 @@ class MOPSClient:
     def get_company_info(self, stock_code: str) -> dict:
         """
         Return company metadata dict: {name_zh, industry, market}.
-        Falls back to a placeholder if MOPS is unreachable.
+
+        Every value is None when the company cannot be found or the directories
+        are unreachable; callers must not substitute the stock code for a name.
         """
-        if stock_code in _COMPANY_CACHE:
-            return _COMPANY_CACHE[stock_code]
+        directory = self._load_directory()
+        return dict(
+            directory.get(stock_code) or {"name_zh": None, "industry": None, "market": None}
+        )
 
-        info = self._fetch_company_info(stock_code)
-        if info:
-            _COMPANY_CACHE[stock_code] = info
-        else:
-            info = {"name_zh": stock_code, "industry": None, "market": None}
-        return info
+    def _load_directory(self) -> dict[str, dict]:
+        global _DIRECTORY_CACHE
+        if _DIRECTORY_CACHE is not None:
+            return _DIRECTORY_CACHE
 
-    def _fetch_company_info(self, stock_code: str) -> dict | None:
-        """Try to fetch real company info from MOPS."""
-        try:
-            resp = self._session.post(
-                self.COMPANY_INFO_URL,
-                data={
-                    "encodeURIComponent": "1",
-                    "step": "1",
-                    "firstin": "1",
-                    "off": "1",
-                    "co_id": stock_code,
-                },
-                timeout=self.timeout,
-            )
-            resp.raise_for_status()
-            return self._parse_company_info(resp.text)
-        except Exception as exc:
-            logger.debug("MOPS company info lookup failed for %s: %s", stock_code, exc)
-            return None
+        directory: dict[str, dict] = {}
+        for url, market, code_key, name_key, industry_key in _DIRECTORIES:
+            try:
+                resp = self._session.get(url, timeout=self.timeout)
+                resp.raise_for_status()
+                rows = resp.json()
+            except Exception as exc:
+                logger.warning("Company directory fetch failed (%s): %s", url, exc)
+                return directory
+            directory.update(self._parse_directory(rows, market, code_key, name_key, industry_key))
 
-    def _parse_company_info(self, html: str) -> dict | None:
-        """Parse MOPS company info page."""
-        try:
-            soup = BeautifulSoup(html, "lxml")
-            tables = soup.find_all("table")
-            info: dict = {}
-            for table in tables:
-                if not isinstance(table, Tag):
-                    continue
-                rows = table.find_all("tr")
-                for row in rows:
-                    if not isinstance(row, Tag):
-                        continue
-                    cells = [
-                        td.get_text(strip=True) for td in row.find_all("td") if isinstance(td, Tag)
-                    ]
-                    if len(cells) >= 2:
-                        key, val = cells[0], cells[1]
-                        if "公司名稱" in key or "名稱" in key:
-                            info["name_zh"] = val
-                        elif "產業類別" in key or "產業" in key:
-                            info["industry"] = val
-                        elif "上市" in key or "市場" in key:
-                            info["market"] = val
-            return info if info else None
-        except Exception:
-            return None
+        _DIRECTORY_CACHE = directory
+        return directory
+
+    @staticmethod
+    def _parse_directory(
+        rows: object, market: str, code_key: str, name_key: str, industry_key: str
+    ) -> dict[str, dict]:
+        """Index one OpenAPI company list by stock code."""
+        parsed: dict[str, dict] = {}
+        if not isinstance(rows, list):
+            return parsed
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            code = str(row.get(code_key) or "").strip()
+            name = str(row.get(name_key) or "").strip()
+            if not code or not name:
+                continue
+            industry = str(row.get(industry_key) or "").strip() or None
+            parsed[code] = {
+                "name_zh": name,
+                "industry": INDUSTRY_NAMES.get(industry, industry) if industry else None,
+                "market": market,
+            }
+        return parsed
 
     def get_filing_date(self, identity: FilingIdentity) -> date | None:
         """
