@@ -72,6 +72,9 @@ class alone.
 Compatibility fields are preserved alongside richer sections:
 
 - `identity.company_name` resolves `name_zh`, then `name_en`, then stock code.
+  Snapshot, refresh, job and batch responses build the identity the same way
+  (`build_identity`); an unknown company gets null name, industry and market
+  fields, never the stock code repeated in them.
 - `snapshot.eps` aliases `snapshot.eps_basic`.
 - `metrics` remains a name-to-value mapping; `metric_records` contains typed
   unit/formula/input/confidence records.
