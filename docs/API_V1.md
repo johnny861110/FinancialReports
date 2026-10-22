@@ -120,6 +120,23 @@ XBRL tag, and evidence. The response also includes full field availability,
 validation records, comparisons, insight cards, source-document provenance
 (without server-local paths), and pipeline state.
 
+`period_start` and `period_end` on a `finmind` duration fact cover what the
+value itself covers, which depends on the statement:
+
+- Income-statement fields (revenue, net income, EPS, ...) are single-quarter.
+  For `2026Q2` the period is `2026-04-01` to `2026-06-30`; Q3 and Q4 likewise
+  start on `07-01` and `10-01`.
+- Cash-flow fields (`operating_cash_flow`, `investing_cash_flow`,
+  `financing_cash_flow`, `capex`, `cash_beginning`) are year-to-date, as
+  Taiwanese cash-flow statements are filed: `2026Q2` is `2026-01-01` to
+  `2026-06-30`.
+- A semiannual filer (興櫃, which files no Q1 or Q3 report) has no earlier
+  quarter to separate out, so its Q2 income figures are Jan-Jun as well.
+- Instant (balance-sheet) facts have `period_start` equal to `period_end`.
+
+Q1 starts on `01-01` in every case. Do not subtract a cash-flow value from an
+income value of the same filing as if both covered the same months.
+
 ## Filtering, pagination, and batch bounds
 
 Stock and period pages are bounded to 100 records. Snapshot/context field

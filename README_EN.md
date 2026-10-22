@@ -403,6 +403,7 @@ uv run fr batch <batch.json> [options]
 
 # Maintenance
 uv run fr embed [--stock <stock_code>]          # embed chunks that lack a vector; existing ones are skipped
+uv run fr relabel-periods [--dry-run] [--stock <stock_code>]  # correct period_start on finmind duration facts (income = single quarter, cash flow = year-to-date); safe to re-run
 uv run fr backfill-companies [--dry-run]         # fill company names, industry and market from the TWSE/TPEx open-data directories (listed, OTC and emerging board)
 ```
 
@@ -541,7 +542,8 @@ filing_id | field          | value      | unit          | period_type | source_t
 ```
 
 `source_type` values: `xbrl` / `ixbrl` / `finmind` / `pdf_table` / `pdf_text` / `computed`  
-`period_type`: `duration` (flow, e.g. revenue) / `instant` (point-in-time, e.g. assets)
+`period_type`: `duration` (flow, e.g. revenue) / `instant` (point-in-time, e.g. assets)  
+`period_start` (finmind duration facts): income-statement fields are **single-quarter** (Q2 = Apr 1–Jun 30), cash-flow fields are **year-to-date** (Q2 = Jan 1–Jun 30); an emerging-board (興櫃) company files no Q1/Q3 report, so its Q2 is Jan 1–Jun 30.
 
 **`financial_metrics`** — Computed financial ratios
 

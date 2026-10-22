@@ -392,6 +392,7 @@ uv run fr batch <batch.json> [選項]
 # 維護
 uv run fr embed [--stock <stock_code>]          # 補上缺少的 chunk 向量；已有的會跳過
 uv run fr backfill-companies [--dry-run]         # 從 TWSE／TPEx 開放資料（上市、上櫃、興櫃名單）補公司名稱、產業、上市別
+uv run fr relabel-periods [--dry-run] [--stock <stock_code>]  # 修正 finmind 流量事實的 period_start（損益表單季、現金流量表累計）；可重複執行
 ```
 
 **通用選項：**
@@ -527,7 +528,8 @@ filing_id | field          | value      | unit          | period_type | source_t
 ```
 
 `source_type` 可為：`xbrl` / `ixbrl` / `finmind` / `pdf_table` / `pdf_text` / `computed`  
-`period_type`：`duration`（流量，如營收）/ `instant`（時點，如資產）
+`period_type`：`duration`（流量，如營收）/ `instant`（時點，如資產）  
+`period_start`（finmind 流量事實）：損益表欄位為**單季**（Q2 = 4/1–6/30），現金流量表欄位為**累計**（Q2 = 1/1–6/30）；興櫃公司不申報 Q1／Q3，Q2 為 1/1–6/30。
 
 **`financial_metrics`** — 計算後的財務比率
 

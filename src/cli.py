@@ -491,6 +491,33 @@ def backfill_companies_cmd(
     console.print(f"[green]{verb} {len(changes)} companies.[/green]")
 
 
+@app.command("relabel-periods")
+def relabel_periods_cmd(
+    stock: str | None = typer.Option(None, help="Only this stock code"),
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
+    dry_run: bool = typer.Option(False, help="Show what would change without writing"),
+) -> None:
+    """Fix period_start on FinMind duration facts stored with the old Jan-1 label.
+
+    Income-statement values for Q2-Q4 are single-quarter, so they start on the
+    quarter's first day; cash flow stays year-to-date. Only period_start is
+    rewritten. Re-running changes nothing further.
+    """
+    from src.pipeline.relabel import relabel_periods
+
+    store = _make_store(db)
+    summary = relabel_periods(store, stock=stock, dry_run=dry_run)
+
+    table = Table("quarter", "dataset", "rows")
+    for (quarter, dataset), count in sorted(summary.changed.items()):
+        table.add_row(quarter, dataset, str(count))
+    console.print(table)
+    verb = "Would relabel" if dry_run else "Relabelled"
+    console.print(
+        f"[green]{verb} {summary.total_changed} of {summary.examined} finmind duration facts.[/green]"
+    )
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     app()
