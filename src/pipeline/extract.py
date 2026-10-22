@@ -120,9 +120,10 @@ async def _fetch_finmind_facts(
     )
     from src.sources.finmind_client import FinMindClient
 
+    semiannual = store.get_company_market(identity.stock_code) in SEMIANNUAL_MARKETS
     try:
         client = FinMindClient()
-        raw_facts = await client.fetch_facts_async(identity)
+        raw_facts = await client.fetch_facts_async(identity, semiannual=semiannual)
     except Exception as exc:
         logger.warning("FinMind fetch failed for %s: %s", identity.filing_key, exc)
         return 0
@@ -131,7 +132,6 @@ async def _fetch_finmind_facts(
         return 0
 
     _, period_end = quarter_to_dates(identity)
-    semiannual = store.get_company_market(identity.stock_code) in SEMIANNUAL_MARKETS
     fact_objects = [
         Fact(
             filing_key=identity.filing_key,

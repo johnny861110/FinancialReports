@@ -111,6 +111,46 @@ _INSTANT_FIELDS = {
 }
 
 
+# Quarter-end date of the quarter before, as FinMind dates its rows. Q1 has none.
+_PREVIOUS_QUARTER_END = {"Q2": "03-31", "Q3": "06-30", "Q4": "09-30"}
+
+
+def _ytd_operating_cash_flow(records: list[dict], date: str) -> float | None:
+    """Year-to-date operating cash flow on `date`, in thousands, or None if absent."""
+    for rec in records:
+        if rec.get("date") != date or rec.get("value") is None:
+            continue
+        if _FINMIND_TO_CANONICAL.get(rec.get("type", "")) != "operating_cash_flow":
+            continue
+        try:
+            return float(rec["value"]) / 1000.0
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def operating_cash_flow_quarter(
+    records: list[dict], identity: FilingIdentity, *, semiannual: bool = False
+) -> float | None:
+    """
+    Operating cash flow over the months the income statement covers.
+
+    FinMind's cash-flow dataset is year-to-date, so a quarterly filer's single
+    quarter is this quarter-end's value less the previous quarter-end's, taken
+    from the same response (the query starts on Jan 1). Q1, and a semiannual
+    filer's Q2, are the year-to-date value itself. Returns None when the
+    previous row is missing -- never a guess.
+    """
+    current = _ytd_operating_cash_flow(records, _period_end_date(identity))
+    if current is None or semiannual or identity.quarter == "Q1":
+        return current
+    previous_end = _PREVIOUS_QUARTER_END.get(identity.quarter)
+    if previous_end is None:
+        return None
+    previous = _ytd_operating_cash_flow(records, f"{identity.year}-{previous_end}")
+    return None if previous is None else current - previous
+
+
 def _period_end_date(identity: FilingIdentity) -> str:
     """Return the last day of the quarter as YYYY-MM-DD."""
     quarter_end = {
@@ -147,10 +187,15 @@ class FinMindClient:
         self,
         identity: FilingIdentity,
         client: httpx.AsyncClient | None = None,
+        *,
+        semiannual: bool = False,
     ) -> list[dict]:
         """
         Fetch all three statements for a filing and return canonical fact dicts.
         Each dict has: field, value, unit, period_type
+
+        Also derives operating_cash_flow_quarter from the cash-flow rows; see
+        operating_cash_flow_quarter() for what `semiannual` changes.
         """
         period_end = _period_end_date(identity)
         # Start of year for the annual range query
@@ -181,6 +226,19 @@ class FinMindClient:
                 logger.warning("FinMind %s failed for %s: %s", ds, identity.filing_key, result)
                 continue
             facts.extend(self._records_to_facts(result, period_end))
+            if ds == "TaiwanStockCashFlowsStatement":
+                ocf_quarter = operating_cash_flow_quarter(result, identity, semiannual=semiannual)
+                if ocf_quarter is not None:
+                    facts.append(
+                        {
+                            "field": "operating_cash_flow_quarter",
+                            "value": ocf_quarter,
+                            "unit": "TWD_thousands",
+                            "period_type": "duration",
+                            "confidence": 0.9,
+                            "xbrl_tag": None,
+                        }
+                    )
 
         logger.info("FinMind fetched %d facts for %s", len(facts), identity.filing_key)
         return facts

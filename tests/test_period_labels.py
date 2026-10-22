@@ -79,7 +79,7 @@ def _save(store: FilingStore, identity: FilingIdentity, market: str | None, monk
     company_id = store.upsert_company(identity.stock_code, "測試", market=market)
     filing_id = store.upsert_filing(identity, company_id)
 
-    async def _fake(self, ident, client=None):
+    async def _fake(self, ident, client=None, **kwargs):
         return raw
 
     monkeypatch.setattr(finmind_client.FinMindClient, "fetch_facts_async", _fake)

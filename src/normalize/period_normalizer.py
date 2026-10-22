@@ -34,6 +34,11 @@ _QUARTER_START_MONTH: dict[str, int] = {"Q1": 1, "Q2": 4, "Q3": 7, "Q4": 10}
 SEMIANNUAL_MARKETS = frozenset({"興櫃"})
 
 
+# Cash-flow fields that are not year-to-date: they cover the same months as the
+# income statement and so start where an income field would.
+SINGLE_PERIOD_CASHFLOW = frozenset({"operating_cash_flow_quarter"})
+
+
 def roc_to_ce(year: int) -> int:
     """Convert Republic of China year to Common Era (Gregorian) year."""
     return year + 1911
@@ -132,6 +137,6 @@ def finmind_period_start(identity: FilingIdentity, field: str, *, semiannual: bo
     statements are filed, so its start is Jan 1. A semiannual filer's Q2 is
     Jan-Jun whichever dataset it came from.
     """
-    if semiannual or field in CANONICAL_CASHFLOW:
+    if semiannual or (field in CANONICAL_CASHFLOW and field not in SINGLE_PERIOD_CASHFLOW):
         return date(identity.year, 1, 1)
     return quarter_start(identity)

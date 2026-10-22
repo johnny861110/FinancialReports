@@ -166,6 +166,14 @@ CANONICAL_CASHFLOW: dict[str, dict] = {
         "xbrl_tags": ["AcquisitionOfPropertyPlantAndEquipment"],
         "zh": "購買不動產廠房設備",
     },
+    # Derived: operating cash flow over the same months as the filing's income
+    # statement (single quarter, or Jan-Jun for a semiannual filer), because
+    # operating_cash_flow itself is year-to-date.
+    "operating_cash_flow_quarter": {
+        "unit": "TWD_thousands",
+        "xbrl_tags": [],
+        "zh": "營業活動現金流量（與損益表同期間）",
+    },
     "free_cash_flow": {
         "unit": "TWD_thousands",
         "xbrl_tags": [],
