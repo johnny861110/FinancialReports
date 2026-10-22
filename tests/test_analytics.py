@@ -29,6 +29,7 @@ SAMPLE_FACTS = {
     "current_assets": 150_000.0,
     "current_liabilities": 80_000.0,
     "operating_cash_flow": 80_000.0,
+    "operating_cash_flow_quarter": 54_000.0,
     "capex": -20_000.0,
     "share_capital": 50_000.0,
 }

@@ -7,7 +7,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from src.analytics.comparisons import compute_changes, get_prior_quarter, get_prior_year
+from src.analytics.comparisons import (
+    YTD_CASHFLOW_FIELDS,
+    compute_changes,
+    get_prior_quarter,
+    get_prior_year,
+)
 from src.analytics.event_detector import detect_events
 from src.analytics.insight_builder import build_all_insights
 from src.analytics.metrics import compute_all_metrics
@@ -106,7 +111,7 @@ def run_build_insights(identity: FilingIdentity, store: FilingStore) -> dict:
         qoq_identity = get_prior_quarter(identity)
         qoq_facts = store.get_facts_dict(qoq_identity.filing_key)
         if qoq_facts:
-            qoq_changes = compute_changes(facts, qoq_facts)
+            qoq_changes = compute_changes(facts, qoq_facts, exclude=YTD_CASHFLOW_FIELDS)
             qoq_filing_id = store.get_filing_id(qoq_identity.filing_key)
             for change in qoq_changes:
                 store.save_comparison(

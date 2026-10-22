@@ -7,6 +7,8 @@ from __future__ import annotations
 import logging
 
 from src.domain.identity import FilingIdentity
+from src.domain.taxonomy import CANONICAL_CASHFLOW
+from src.normalize.period_normalizer import SINGLE_PERIOD_CASHFLOW
 
 logger = logging.getLogger(__name__)
 
@@ -16,20 +18,35 @@ _SIGNIFICANCE_THRESHOLDS = {
     "small": 0.0,  # anything else
 }
 
+# Cash-flow facts that are year-to-date. A quarter-on-quarter change in one is
+# the later quarter alone against a running total (Q2 vs Q1 reads +112% where
+# the quarters moved +12%), so QoQ leaves them out and compares
+# operating_cash_flow_quarter instead. Year-on-year compares like with like.
+YTD_CASHFLOW_FIELDS = (
+    frozenset(CANONICAL_CASHFLOW)
+    - SINGLE_PERIOD_CASHFLOW
+    - {
+        "cash_ending",
+        "free_cash_flow",
+    }
+)
+
 
 def compute_changes(
     current: dict[str, float],
     prior: dict[str, float],
+    *,
+    exclude: frozenset[str] = frozenset(),
 ) -> list[dict]:
     """
-    For each field present in both current and prior, compute:
+    For each field present in both current and prior (and not in `exclude`), compute:
       {field, current_value, prior_value, change_abs, change_pct, direction, significance}
 
     Returns a list of comparison dicts sorted by abs(change_pct) descending.
     """
     results: list[dict] = []
 
-    common_fields = set(current.keys()) & set(prior.keys())
+    common_fields = (set(current.keys()) & set(prior.keys())) - exclude
     for field in common_fields:
         cur_val = current[field]
         prior_val = prior[field]

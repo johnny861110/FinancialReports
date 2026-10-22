@@ -109,8 +109,10 @@ def compute_all_metrics(facts: dict[str, float]) -> dict[str, float]:
     if rev and rd and rev > 0:
         result["rd_intensity"] = round(rd / rev, 6)
 
-    # Cash flow quality: OCF / net_income
-    ocf = facts.get("operating_cash_flow")
+    # Cash flow quality: OCF / net_income, over the same months. operating_cash_flow
+    # is year-to-date and net_income is single-quarter, so the ratio uses the
+    # derived operating_cash_flow_quarter and is absent when that is.
+    ocf = facts.get("operating_cash_flow_quarter")
     ni = facts.get("net_income")
     if ocf is not None and ni is not None and ni != 0:
         result["cf_quality"] = round(ocf / ni, 4)
