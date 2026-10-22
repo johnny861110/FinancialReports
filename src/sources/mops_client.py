@@ -43,6 +43,13 @@ _DIRECTORIES = (
         "CompanyAbbreviation",
         "SecuritiesIndustryCode",
     ),
+    (
+        "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_R",
+        "興櫃",
+        "SecuritiesCompanyCode",
+        "CompanyAbbreviation",
+        "SecuritiesIndustryCode",
+    ),
 )
 
 # Industry codes shared by both exchanges. A code missing here is kept as-is.
@@ -126,7 +133,12 @@ class MOPSClient:
             except Exception as exc:
                 logger.warning("Company directory fetch failed (%s): %s", url, exc)
                 return directory
-            directory.update(self._parse_directory(rows, market, code_key, name_key, industry_key))
+            # Entries are ordered highest listing first; a company that appears in
+            # more than one list (it moved up a board) keeps the earlier entry.
+            for code, info in self._parse_directory(
+                rows, market, code_key, name_key, industry_key
+            ).items():
+                directory.setdefault(code, info)
 
         _DIRECTORY_CACHE = directory
         return directory
