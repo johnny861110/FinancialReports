@@ -20,6 +20,19 @@ TPEX_ROWS = [
         "SecuritiesIndustryCode": "33",
     },
 ]
+EMERGING_ROWS = [
+    {
+        "SecuritiesCompanyCode": "7418",
+        "CompanyAbbreviation": "香繼光",
+        "SecuritiesIndustryCode": "16",
+    },
+    # Also on the TWSE list: it moved up a board, so the listed entry must win.
+    {
+        "SecuritiesCompanyCode": "2330",
+        "CompanyAbbreviation": "舊名",
+        "SecuritiesIndustryCode": "01",
+    },
+]
 
 
 class _Response:
@@ -54,7 +67,10 @@ def _client(monkeypatch, responses: dict[str, object]) -> MOPSClient:
 
 @pytest.fixture
 def working_client(monkeypatch) -> MOPSClient:
-    return _client(monkeypatch, {"twse.com.tw": TWSE_ROWS, "tpex.org.tw": TPEX_ROWS})
+    return _client(
+        monkeypatch,
+        {"twse.com.tw": TWSE_ROWS, "t187ap03_O": TPEX_ROWS, "t187ap03_R": EMERGING_ROWS},
+    )
 
 
 @pytest.fixture
@@ -107,7 +123,10 @@ def test_api_failure_gives_nulls_warns_and_is_retried(monkeypatch, caplog) -> No
     assert "Company directory fetch failed" in caplog.text
 
     # The failure must not be cached: a later lookup succeeds once the API is back.
-    client = _client(monkeypatch, {"twse.com.tw": TWSE_ROWS, "tpex.org.tw": TPEX_ROWS})
+    client = _client(
+        monkeypatch,
+        {"twse.com.tw": TWSE_ROWS, "t187ap03_O": TPEX_ROWS, "t187ap03_R": EMERGING_ROWS},
+    )
     assert client.get_company_info("2330")["name_zh"] == "台積電"
 
 
@@ -172,3 +191,34 @@ def test_backfill_keeps_real_data_when_directory_is_down(monkeypatch, store) -> 
 
     assert backfill_companies(store, client) == []
     assert _row(store, "2330") == ("台積電", "半導體業", "上市")
+
+
+def test_emerging_board_company_is_resolved(working_client) -> None:
+    assert working_client.get_company_info("7418") == {
+        "name_zh": "香繼光",
+        "industry": "觀光餐旅",
+        "market": "興櫃",
+    }
+
+
+def test_a_company_on_a_higher_board_keeps_that_listing(working_client) -> None:
+    assert working_client.get_company_info("2330") == {
+        "name_zh": "台積電",
+        "industry": "半導體業",
+        "market": "上市",
+    }
+
+
+def test_the_emerging_list_failing_still_returns_the_partial_directory_uncached(
+    monkeypatch, caplog
+) -> None:
+    client = _client(
+        monkeypatch,
+        {"twse.com.tw": TWSE_ROWS, "t187ap03_O": TPEX_ROWS, "t187ap03_R": OSError("boom")},
+    )
+
+    with caplog.at_level("WARNING"):
+        assert client.get_company_info("2330")["name_zh"] == "台積電"
+        assert client.get_company_info("7418")["name_zh"] is None
+    assert "Company directory fetch failed" in caplog.text
+    assert mops_client._DIRECTORY_CACHE is None
