@@ -130,3 +130,57 @@ def test_yoy_still_compares_ytd_cash_flow():
 def test_ytd_set_keeps_balance_like_and_derived_fields_out():
     assert {"operating_cash_flow", "investing_cash_flow", "capex"} <= YTD_CASHFLOW_FIELDS
     assert not YTD_CASHFLOW_FIELDS & {"operating_cash_flow_quarter", "cash_ending"}
+
+
+# ── the cash-flow card states each figure's period ───────────────────────────
+
+Q2_METRICS = {"free_cash_flow": 635_576_496.0, "cf_quality": 1.1084}
+
+
+def _card(quarter: str, facts: dict, metrics: dict) -> dict:
+    card = build_cash_flow_insight(_identity(quarter), facts, metrics)
+    assert card is not None
+    return card
+
+
+def test_card_for_a_quarterly_second_quarter_separates_ytd_from_the_quarter():
+    card = _card("Q2", Q2, Q2_METRICS)
+    parts = card["summary"].split("；")
+    assert parts[0].startswith("營業現金流（1–6月累計）")
+    assert parts[1].startswith("自由現金流（1–6月累計）")
+    assert parts[2].startswith("本季營業現金流")
+    assert parts[3] == "現金流品質比（本季） 1.11"
+    dp = card["data_points"]
+    assert dp["operating_cash_flow"] == 1_482_341_242.0
+    assert dp["operating_cash_flow_quarter"] == 783_364_977.0
+    assert {"free_cash_flow", "cf_quality_ratio", "capex"} <= set(dp)
+
+
+def test_card_for_q1_prints_one_plain_label_and_no_duplicate_figure():
+    facts = {
+        "net_income": 1.0,
+        "operating_cash_flow": 698_976_265.0,
+        "operating_cash_flow_quarter": 698_976_265.0,
+    }
+    summary = _card("Q1", facts, {"cf_quality": 1.22})["summary"]
+    assert "（1–3月）" in summary and "累計" not in summary and "本季" not in summary
+    assert summary.count("698.98") == 1
+
+
+def test_card_for_a_semiannual_second_quarter_prints_one_plain_label():
+    facts = {
+        "net_income": 1.0,
+        "operating_cash_flow": 90_000.0,
+        "operating_cash_flow_quarter": 90_000.0,
+    }
+    summary = _card("Q2", facts, {"cf_quality": 0.9})["summary"]
+    assert summary.startswith("營業現金流（1–6月） ")
+    assert "累計" not in summary and "本季" not in summary
+    assert "現金流品質比（1–6月） 0.90" in summary
+
+
+def test_card_without_the_quarter_value_labels_ytd_and_omits_the_quarter_line():
+    facts = {k: v for k, v in Q2.items() if k != "operating_cash_flow_quarter"}
+    card = _card("Q2", facts, {"free_cash_flow": 1.0})
+    assert "（1–6月累計）" in card["summary"] and "本季" not in card["summary"]
+    assert card["data_points"]["operating_cash_flow_quarter"] is None

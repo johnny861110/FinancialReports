@@ -185,6 +185,9 @@ def build_margin_insight(
     }
 
 
+_QUARTER_END_MONTH = {"Q1": 3, "Q2": 6, "Q3": 9, "Q4": 12}
+
+
 def build_cash_flow_insight(
     identity: FilingIdentity,
     facts: dict[str, float],
@@ -198,11 +201,23 @@ def build_cash_flow_insight(
     if ocf is None:
         return None
 
-    parts = [f"營業現金流 {_fmt_num(ocf)}"]
+    # operating_cash_flow and free_cash_flow are year-to-date; the quarter value and
+    # the ratio built on it cover the income statement's months. Say which is which,
+    # and when both cover the same months (Q1, a semiannual filer's Q2) print one.
+    ocf_quarter = facts.get("operating_cash_flow_quarter")
+    end_month = _QUARTER_END_MONTH.get(identity.quarter, 12)
+    ytd_label = f"1–{end_month}月"
+    same_months = identity.quarter == "Q1" or ocf_quarter == ocf
+    ytd_suffix = ytd_label if same_months else f"{ytd_label}累計"
+
+    parts = [f"營業現金流（{ytd_suffix}） {_fmt_num(ocf)}"]
     if fcf is not None:
-        parts.append(f"自由現金流 {_fmt_num(fcf)}")
+        parts.append(f"自由現金流（{ytd_suffix}） {_fmt_num(fcf)}")
+    if ocf_quarter is not None and not same_months:
+        parts.append(f"本季營業現金流 {_fmt_num(ocf_quarter)}")
     if cf_quality is not None:
-        parts.append(f"現金流品質比 {cf_quality:.2f}")
+        ratio_label = ytd_label if same_months else "本季"
+        parts.append(f"現金流品質比（{ratio_label}） {cf_quality:.2f}")
 
     sentiment = "neutral"
     if fcf is not None:
@@ -217,6 +232,7 @@ def build_cash_flow_insight(
         "summary": "；".join(parts),
         "data_points": {
             "operating_cash_flow": ocf,
+            "operating_cash_flow_quarter": ocf_quarter,
             "free_cash_flow": fcf,
             "cf_quality_ratio": cf_quality,
             "capex": facts.get("capex"),
