@@ -134,6 +134,17 @@ value itself covers, which depends on the statement:
   quarter to separate out, so its Q2 income figures are Jan-Jun as well.
 - Instant (balance-sheet) facts have `period_start` equal to `period_end`.
 
+`operating_cash_flow_quarter` is derived from the cash-flow rows and covers the
+same months as the filing's income-statement facts: the single quarter (this
+quarter-end's year-to-date value less the previous quarter-end's) for a quarterly
+filer, and the year-to-date value for Q1 and for a semiannual filer's Q2. Its
+`period_start` follows the income-statement rule above (`2026-04-01` for Q2),
+unlike `operating_cash_flow`, which stays year-to-date. It is absent when the
+previous quarter's cash-flow row is unavailable; it is never estimated.
+`cf_quality` is `operating_cash_flow_quarter / net_income` and is absent with it,
+and quarter-on-quarter comparisons use `operating_cash_flow_quarter` rather than
+the year-to-date cash-flow fields.
+
 Q1 starts on `01-01` in every case. Do not subtract a cash-flow value from an
 income value of the same filing as if both covered the same months.
 

@@ -518,6 +518,48 @@ def relabel_periods_cmd(
     )
 
 
+@app.command("backfill-cash-flow-quarter")
+def backfill_cash_flow_quarter_cmd(
+    stock: str | None = typer.Option(None, help="Only this stock code"),
+    db: str | None = typer.Option(None, help="Database URL (defaults to $FR_DATABASE_URL)"),
+    dry_run: bool = typer.Option(False, help="Fetch and report without writing"),
+    show: list[str] = typer.Option(
+        [], "--show", help="List cf_quality before/after for this filing key"
+    ),
+) -> None:
+    """Add operating_cash_flow_quarter to stored filings and rebuild their analytics.
+
+    One read-only FinMind request per filing. Rewrites facts, metrics, comparisons,
+    events and insight cards only; chunks and embeddings are not touched.
+    Re-running changes nothing further.
+    """
+    import asyncio
+
+    from src.pipeline.backfill_cash_flow import backfill_cash_flow_quarter
+
+    store = _make_store(db)
+    summary = asyncio.run(backfill_cash_flow_quarter(store, stock=stock, dry_run=dry_run))
+
+    statuses = ["added", "unchanged", "no_current_row", "no_previous_row", "failed"]
+    table = Table("quarter", *statuses)
+    for quarter, counts in sorted(summary.by_quarter().items()):
+        table.add_row(quarter, *(str(counts.get(s, 0)) for s in statuses))
+    console.print(table)
+    if show:
+        detail = Table("filing", "status", "cf_quality before", "cf_quality after")
+        for o in summary.outcomes:
+            if o.filing_key in show:
+                detail.add_row(
+                    o.filing_key, o.status, str(o.cf_quality_before), str(o.cf_quality_after)
+                )
+        console.print(detail)
+    verb = "Would write" if dry_run else "Wrote"
+    added = sum(1 for o in summary.outcomes if o.status == "added")
+    console.print(
+        f"[green]{verb} operating_cash_flow_quarter for {added} of {len(summary.outcomes)} filings.[/green]"
+    )
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     app()

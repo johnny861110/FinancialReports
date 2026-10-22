@@ -393,6 +393,7 @@ uv run fr batch <batch.json> [選項]
 uv run fr embed [--stock <stock_code>]          # 補上缺少的 chunk 向量；已有的會跳過
 uv run fr backfill-companies [--dry-run]         # 從 TWSE／TPEx 開放資料（上市、上櫃、興櫃名單）補公司名稱、產業、上市別
 uv run fr relabel-periods [--dry-run] [--stock <stock_code>]  # 修正 finmind 流量事實的 period_start（損益表單季、現金流量表累計）；可重複執行
+uv run fr backfill-cash-flow-quarter [--dry-run] [--stock <stock_code>]  # 對既有 filing 補 operating_cash_flow_quarter（與損益表同期間的營業現金流）並重算指標／比較／洞察卡；每個 filing 一次 FinMind 唯讀請求，不動 chunks
 ```
 
 **通用選項：**
@@ -529,7 +530,8 @@ filing_id | field          | value      | unit          | period_type | source_t
 
 `source_type` 可為：`xbrl` / `ixbrl` / `finmind` / `pdf_table` / `pdf_text` / `computed`  
 `period_type`：`duration`（流量，如營收）/ `instant`（時點，如資產）  
-`period_start`（finmind 流量事實）：損益表欄位為**單季**（Q2 = 4/1–6/30），現金流量表欄位為**累計**（Q2 = 1/1–6/30）；興櫃公司不申報 Q1／Q3，Q2 為 1/1–6/30。
+`period_start`（finmind 流量事實）：損益表欄位為**單季**（Q2 = 4/1–6/30），現金流量表欄位為**累計**（Q2 = 1/1–6/30）；興櫃公司不申報 Q1／Q3，Q2 為 1/1–6/30。  
+`operating_cash_flow_quarter`（衍生）：與損益表同期間的營業現金流（單季 = 本季累計 − 上季累計；Q1 與興櫃 Q2 即累計值）；缺上季資料時不產生，`cf_quality` 也隨之缺。
 
 **`financial_metrics`** — 計算後的財務比率
 

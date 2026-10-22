@@ -115,7 +115,7 @@ _INSTANT_FIELDS = {
 _PREVIOUS_QUARTER_END = {"Q2": "03-31", "Q3": "06-30", "Q4": "09-30"}
 
 
-def _ytd_operating_cash_flow(records: list[dict], date: str) -> float | None:
+def ytd_operating_cash_flow(records: list[dict], date: str) -> float | None:
     """Year-to-date operating cash flow on `date`, in thousands, or None if absent."""
     for rec in records:
         if rec.get("date") != date or rec.get("value") is None:
@@ -141,13 +141,13 @@ def operating_cash_flow_quarter(
     filer's Q2, are the year-to-date value itself. Returns None when the
     previous row is missing -- never a guess.
     """
-    current = _ytd_operating_cash_flow(records, _period_end_date(identity))
+    current = ytd_operating_cash_flow(records, _period_end_date(identity))
     if current is None or semiannual or identity.quarter == "Q1":
         return current
     previous_end = _PREVIOUS_QUARTER_END.get(identity.quarter)
     if previous_end is None:
         return None
-    previous = _ytd_operating_cash_flow(records, f"{identity.year}-{previous_end}")
+    previous = ytd_operating_cash_flow(records, f"{identity.year}-{previous_end}")
     return None if previous is None else current - previous
 
 
@@ -242,6 +242,18 @@ class FinMindClient:
 
         logger.info("FinMind fetched %d facts for %s", len(facts), identity.filing_key)
         return facts
+
+    async def fetch_cash_flow_records_async(
+        self, identity: FilingIdentity, client: httpx.AsyncClient
+    ) -> list[dict]:
+        """Only the cash-flow dataset, Jan 1 to the quarter end: one request."""
+        return await self._fetch_dataset(
+            "TaiwanStockCashFlowsStatement",
+            identity.stock_code,
+            f"{identity.year}-01-01",
+            _period_end_date(identity),
+            client,
+        )
 
     async def _fetch_dataset(
         self,
