@@ -1788,7 +1788,7 @@
           "stale_after_seconds": {
             "type": "integer",
             "title": "Stale After Seconds",
-            "default": 86400
+            "default": 1209600
           }
         },
         "additionalProperties": false,

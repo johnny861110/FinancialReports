@@ -79,7 +79,10 @@ class Freshness(ContractModel):
     updated_at: datetime | None = None
     is_stale: bool
     latest_source_at: datetime | None = None
-    stale_after_seconds: int = 86400
+    # The default grace period in seconds (14 days); see src/api/freshness.py. A
+    # literal rather than a read of FR_STALE_GRACE_DAYS so the OpenAPI baseline
+    # does not depend on the environment. Responses carry the configured value.
+    stale_after_seconds: int = 1209600
 
 
 class ValidationFailure(ContractModel):
