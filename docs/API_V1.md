@@ -40,8 +40,9 @@ quarter's statutory deadline (Q1 5/15, Q2 8/14, Q3 11/14, Q4 3/31 of the next
 year; general-industry dates, financial-sector differences are not modelled) plus
 a grace period (default 14 days, `FR_STALE_GRACE_DAYS`) has passed and
 `freshness.updated_at` is earlier than that point. A copy taken after it, or any
-quarter still before it, is `current`. `freshness.stale_after_seconds` now carries
-the grace period in seconds. See `src/api/freshness.py`.
+quarter still before it, is `current`. `freshness.stale_after_seconds` carries
+the configured grace period in seconds (default 1209600, i.e. 14 days). See
+`src/api/freshness.py`.
 
 Two distinct 409s and one 503, and the difference matters to a retry policy:
 
@@ -74,7 +75,8 @@ Compatibility fields are preserved alongside richer sections:
 - `identity.company_name` resolves `name_zh`, then `name_en`, then stock code.
   Snapshot, refresh, job and batch responses build the identity the same way
   (`build_identity`); an unknown company gets null name, industry and market
-  fields, never the stock code repeated in them.
+  fields, never the stock code repeated in them. `identity.market` is `上市`,
+  `上櫃` or `興櫃`.
 - `snapshot.eps` aliases `snapshot.eps_basic`.
 - `metrics` remains a name-to-value mapping; `metric_records` contains typed
   unit/formula/input/confidence records.

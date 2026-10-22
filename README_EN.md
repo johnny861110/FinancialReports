@@ -403,7 +403,7 @@ uv run fr batch <batch.json> [options]
 
 # Maintenance
 uv run fr embed [--stock <stock_code>]          # embed chunks that lack a vector; existing ones are skipped
-uv run fr backfill-companies [--dry-run]         # fill company names, industry and market from TWSE/TPEx open data
+uv run fr backfill-companies [--dry-run]         # fill company names, industry and market from the TWSE/TPEx open-data directories (listed, OTC and emerging board)
 ```
 
 **Common Options:**
