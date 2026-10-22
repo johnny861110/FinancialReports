@@ -509,6 +509,29 @@ class FilingStore:
             )
             return int(result.scalar_one())
 
+    def clear_analytics(self, filing_id: int) -> None:
+        """Delete a filing's metrics, comparisons, events and insight cards.
+
+        Insight evidence rows hang off the cards, so they go first. Facts,
+        validation results and document text are untouched.
+        """
+        with self.conn() as c:
+            params = {"fid": filing_id}
+            c.execute(
+                text(
+                    "DELETE FROM insight_evidence WHERE card_id IN"
+                    " (SELECT id FROM insight_cards WHERE filing_id=:fid)"
+                ),
+                params,
+            )
+            for table in (
+                "insight_cards",
+                "detected_events",
+                "period_comparisons",
+                "financial_metrics",
+            ):
+                c.execute(text(f"DELETE FROM {table} WHERE filing_id=:fid"), params)
+
     def save_validation_result(
         self,
         filing_id: int,
