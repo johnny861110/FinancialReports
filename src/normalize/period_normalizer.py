@@ -11,6 +11,7 @@ from datetime import date
 from typing import Any
 
 from src.domain.identity import FilingIdentity
+from src.domain.taxonomy import CANONICAL_CASHFLOW
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,16 @@ _QUARTER_DATES: dict[str, tuple[tuple[int, int], tuple[int, int]]] = {
     "Q3": ((1, 1), (9, 30)),
     "Q4": ((1, 1), (12, 31)),
 }
+
+# First month of each quarter, for datasets that report the quarter on its own.
+_QUARTER_START_MONTH: dict[str, int] = {"Q1": 1, "Q2": 4, "Q3": 7, "Q4": 10}
+
+# Boards whose companies file semiannually: no Q1 or Q3 report, so the Q2
+# figures cover Jan-Jun rather than Apr-Jun. 7418 (興櫃) is the case on record --
+# FinMind holds no 03-31 row for it and its 2026Q2 EPS equals the PDF's
+# Jan-Jun column. companies.market is used rather than "no earlier filing in the
+# DB", because the corpus is incomplete: most listed companies lack some quarter.
+SEMIANNUAL_MARKETS = frozenset({"興櫃"})
 
 
 def roc_to_ce(year: int) -> int:
@@ -104,3 +115,23 @@ def quarter_to_dates(identity: FilingIdentity) -> tuple[date, date]:
     period_start = date(identity.year, start_md[0], start_md[1])
     period_end = date(identity.year, end_md[0], end_md[1])
     return period_start, period_end
+
+
+def quarter_start(identity: FilingIdentity) -> date:
+    """First day of the quarter itself (Q2 = Apr 1), unlike the YTD start above."""
+    return date(identity.year, _QUARTER_START_MONTH.get(identity.quarter, 1), 1)
+
+
+def finmind_period_start(identity: FilingIdentity, field: str, *, semiannual: bool = False) -> date:
+    """
+    Start of the period a FinMind duration value covers.
+
+    The income statement dataset returns the quarter on its own (Q4 included:
+    FinMind derives it as the year less Q1-Q3), so its start is the quarter's
+    first day. The cash-flow dataset returns year-to-date, as Taiwanese cash-flow
+    statements are filed, so its start is Jan 1. A semiannual filer's Q2 is
+    Jan-Jun whichever dataset it came from.
+    """
+    if semiannual or field in CANONICAL_CASHFLOW:
+        return date(identity.year, 1, 1)
+    return quarter_start(identity)

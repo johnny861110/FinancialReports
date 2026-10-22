@@ -113,7 +113,11 @@ async def _fetch_finmind_facts(
     store,
 ) -> int:
     """Fetch facts from FinMind API and save to DB. Returns number of facts saved."""
-    from src.normalize.period_normalizer import quarter_to_dates
+    from src.normalize.period_normalizer import (
+        SEMIANNUAL_MARKETS,
+        finmind_period_start,
+        quarter_to_dates,
+    )
     from src.sources.finmind_client import FinMindClient
 
     try:
@@ -126,14 +130,19 @@ async def _fetch_finmind_facts(
     if not raw_facts:
         return 0
 
-    period_start, period_end = quarter_to_dates(identity)
+    _, period_end = quarter_to_dates(identity)
+    semiannual = store.get_company_market(identity.stock_code) in SEMIANNUAL_MARKETS
     fact_objects = [
         Fact(
             filing_key=identity.filing_key,
             field=f["field"],
             value=f["value"],
             unit=f["unit"],
-            period_start=period_end if f["period_type"] == "instant" else period_start,
+            period_start=(
+                period_end
+                if f["period_type"] == "instant"
+                else finmind_period_start(identity, f["field"], semiannual=semiannual)
+            ),
             period_end=period_end,
             period_type=f["period_type"],
             source_type="finmind",

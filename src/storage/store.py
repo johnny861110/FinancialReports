@@ -105,6 +105,13 @@ class FilingStore:
     # Filing
     # ------------------------------------------------------------------
 
+    def get_company_market(self, stock_code: str) -> str | None:
+        """The board a company trades on (上市 / 上櫃 / 興櫃), or None when unknown."""
+        with self.conn() as conn:
+            return conn.execute(
+                text("SELECT market FROM companies WHERE stock_code=:sc"), {"sc": stock_code}
+            ).scalar_one_or_none()
+
     def upsert_filing(self, identity: FilingIdentity, company_id: int) -> int:
         """Insert or update a filing. Returns filing id."""
         with self.conn() as c:
